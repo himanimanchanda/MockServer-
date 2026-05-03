@@ -125,7 +125,7 @@ export default function LoginPage() {
                 <input
                   type="email"
                   className="w-full mt-2 px-4 py-3 rounded-xl input-dark text-sm"
-                  placeholder="Enter your corporate email"
+                  placeholder="Enter your email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />

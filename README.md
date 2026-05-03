@@ -1,11 +1,11 @@
-# 🚀 Mock Server Platform
+# Mock Server Platform
 
 > Enterprise-grade API mocking platform with dynamic routing, audit trails, Redis caching, and a beautiful React dashboard.
 > Built with **Spring Boot 3** + **PostgreSQL** + **Redis** + **React/Vite** — fully Dockerized.
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
 - [Architecture](#architecture)
 - [Quick Start (Docker)](#quick-start-docker)
@@ -18,7 +18,7 @@
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
@@ -44,7 +44,7 @@
 
 ---
 
-## 🐳 Quick Start (Docker)
+##  Quick Start (Docker)
 
 ```bash
 # 1. Clone and navigate
@@ -78,7 +78,7 @@ docker compose down -v        # stop + delete database volumes
 
 ---
 
-## 💻 Local Development
+##  Local Development
 
 ### Prerequisites
 - Java 17+
@@ -145,7 +145,7 @@ POST /demo/payments            → 201 {"transactionId":"...","status":"PENDING"
 
 ---
 
-## 🧪 Postman / cURL Testing
+## Postman / cURL Testing
 
 **Auth is DISABLED by default** — all endpoints work without any token.
 
@@ -230,7 +230,7 @@ curl http://localhost:8080/demo/redirect         # 302 redirect
 
 ---
 
-## ✨ Features
+## Features
 
 | Feature | Description |
 |---------|-------------|
@@ -251,7 +251,7 @@ curl http://localhost:8080/demo/redirect         # 302 redirect
 
 ---
 
-## ⚙️ Environment Variables
+## Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -268,7 +268,7 @@ curl http://localhost:8080/demo/redirect         # 302 redirect
 
 ---
 
-## 🔧 Troubleshooting
+##  Troubleshooting
 
 ### Backend won't start
 ```bash
@@ -291,7 +291,6 @@ curl http://localhost:8080/actuator/health
 ### 403 Forbidden in Postman
 - Ensure `MOCKSERVER_AUTH_ENABLED=false` (default)
 - Do NOT send `Authorization` header unless you have a valid JWT
-- Remove any custom headers like `ldev: true`
 
 ### Mock not matching
 - Check the endpoint path matches exactly (including leading `/`)
@@ -308,6 +307,4 @@ redis-cli ping  # should return PONG
 
 ---
 
-## 📄 License
-
-Internal / Proprietary — Built for enterprise deployment.
+Proprietary — © 2026 [xxxx]. All rights reserved.
