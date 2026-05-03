@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: mock_postgres
+    environment:
+      POSTGRES_USER: mock_user
+      POSTGRES_PASSWORD: mock_password
+      POSTGRES_DB: mockserver
+    ports:
+      - "5432:5432"
+    volumes:
+      - mock_postgres_data:/var/lib/postgresql/data
+    networks:
+      - mock_net
+
+  redis:
+    image: redis:7.0-alpine
+    container_name: mock_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - mock_redis_data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - mock_net
+
+volumes:
+  mock_postgres_data:
+  mock_redis_data:
+
+networks:
+  mock_net:
+    driver: bridge
