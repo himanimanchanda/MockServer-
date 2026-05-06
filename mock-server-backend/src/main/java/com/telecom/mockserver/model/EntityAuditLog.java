@@ -29,7 +29,7 @@ public class EntityAuditLog {
     private String entityId;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 16)
+    @Column(nullable = false, length = 24)
     private AuditAction action;
 
     @Column(length = 200)
@@ -38,6 +38,22 @@ public class EntityAuditLog {
     /** Short human-readable line (optional) */
     @Column(columnDefinition = "TEXT")
     private String summary;
+
+    /** The API path/endpoint of the entity */
+    @Column(length = 512)
+    private String path;
+
+    /** Snapshot of request body at the time of the action */
+    @Column(columnDefinition = "TEXT")
+    private String requestBody;
+
+    /** Snapshot of response body at the time of the action */
+    @Column(columnDefinition = "TEXT")
+    private String responseBody;
+
+    /** Human-readable project name at the time of the action */
+    @Column(length = 256)
+    private String projectName;
 
     @PrePersist
     void prePersist() {

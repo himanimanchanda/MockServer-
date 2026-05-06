@@ -16,4 +16,8 @@ public class EntityAuditLogDto {
     private AuditAction action;
     private String actorOlmId;
     private String summary;
+    private String path;
+    private String requestBody;
+    private String responseBody;
+    private String projectName;
 }

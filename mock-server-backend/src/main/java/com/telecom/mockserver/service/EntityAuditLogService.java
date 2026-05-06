@@ -9,5 +9,14 @@ public interface EntityAuditLogService {
 
     void record(String entityType, String entityId, AuditAction action, String summary);
 
+    /** Enhanced record with full context: path, request body, response body */
+    void recordWithDetails(String entityType, String entityId, AuditAction action,
+                           String summary, String path, String requestBody, String responseBody);
+
+    /** Enhanced record with full context + project name */
+    void recordWithDetails(String entityType, String entityId, AuditAction action,
+                           String summary, String path, String requestBody, String responseBody,
+                           String projectName);
+
     Page<EntityAuditLogDto> list(Pageable pageable);
 }

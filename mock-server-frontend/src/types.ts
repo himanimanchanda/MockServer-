@@ -68,7 +68,7 @@ export interface ProjectDto {
   name: string
 }
 
-export type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'RECOVER'
+export type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'RECOVER' | 'PERMANENT_DELETE'
 
 export interface AuditLogDto {
   id: number
@@ -78,6 +78,10 @@ export interface AuditLogDto {
   action: AuditAction
   actorOlmId?: string | null
   summary?: string | null
+  path?: string | null
+  requestBody?: string | null
+  responseBody?: string | null
+  projectName?: string | null
 }
 
 export interface SpringPage<T> {

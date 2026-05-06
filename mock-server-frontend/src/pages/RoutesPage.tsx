@@ -8,6 +8,7 @@ import {
   searchMocks,
   listTrash,
   recoverMock,
+  permanentlyDeleteMock,
 } from '../api/client'
 import RouteList from '../components/RouteList'
 import Toast from '../components/Toast'
@@ -38,6 +39,7 @@ export default function RoutesPage() {
   const [viewModal, setViewModal] = React.useState<{ title: string; value: any } | null>(null)
   const [confirmDeleteMockId, setConfirmDeleteMockId] = React.useState<string | null>(null)
   const [confirmBusy, setConfirmBusy] = React.useState(false)
+  const [confirmPermanentDeleteId, setConfirmPermanentDeleteId] = React.useState<string | null>(null)
   const importFileRef = React.useRef<HTMLInputElement>(null)
 
   const PAGE_SIZE = 10
@@ -77,22 +79,18 @@ export default function RoutesPage() {
     }
   }
 
-  async function refreshMocks() {
+  const refreshMocks = React.useCallback(async () => {
     setLoading(true)
     try {
       if (scope === 'trash') {
         const res = await listTrash()
         setMocks(res)
-      } else if (scope === 'all') {
-        const res = await listMocks()
+      } else if (selectedProjectId) {
+        // Always filter by selected project (both 'all' and 'project' tabs)
+        const res = await listProjectMocks(selectedProjectId)
         setMocks(res)
       } else {
-        const pid = selectedProjectId
-        if (!pid) {
-          setMocks([])
-          return
-        }
-        const res = await listProjectMocks(pid)
+        const res = await listMocks()
         setMocks(res)
       }
     } catch (e: any) {
@@ -100,9 +98,9 @@ export default function RoutesPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [scope, selectedProjectId])
 
-  async function refreshSearch(q: string) {
+  const refreshSearch = React.useCallback(async (q: string) => {
     const query = q.trim()
     if (!query) {
       await refreshMocks()
@@ -118,7 +116,7 @@ export default function RoutesPage() {
       }
 
       const results = await searchMocks(query)
-      if (scope === 'project' && selectedProjectId) {
+      if (selectedProjectId) {
         setMocks(results.filter((m) => m.projectId === selectedProjectId))
       } else {
         setMocks(results)
@@ -128,16 +126,16 @@ export default function RoutesPage() {
     } finally {
       setSearchLoading(false)
     }
-  }
+  }, [scope, selectedProjectId, refreshMocks])
 
   React.useEffect(() => {
     refreshMocks()
-  }, [scope, selectedProjectId])
+  }, [refreshMocks])
 
   React.useEffect(() => {
     const t = window.setTimeout(() => refreshSearch(searchQuery), 350)
     return () => window.clearTimeout(t)
-  }, [searchQuery, scope, selectedProjectId])
+  }, [searchQuery, refreshSearch])
 
   async function handleDelete(id: string) {
     setConfirmDeleteMockId(id)
@@ -187,7 +185,7 @@ export default function RoutesPage() {
             </div>
           </div>
 
-          <div className="flex gap-6 border-b border-white/10">
+          <div className="flex flex-wrap gap-4 sm:gap-6 border-b border-white/10">
             <button
               className={`pb-3 text-sm font-semibold transition-all duration-200 border-b-2 ${
                 scope === 'all' ? 'border-white text-white' : 'border-transparent text-white/60 hover:text-white/90'
@@ -212,7 +210,7 @@ export default function RoutesPage() {
               }`}
               onClick={() => setScope('trash')}
             >
-              Trash
+              🗑 Trash
             </button>
           </div>
         </div>
@@ -290,6 +288,7 @@ export default function RoutesPage() {
                   setLoading(false)
                 }
               }}
+              onPermanentDelete={(id) => setConfirmPermanentDeleteId(id)}
               onEdit={(m) => navigate('/create-route', { state: m })}
               onDelete={handleDelete}
               onClone={(m) => navigate('/create-route', { state: { ...m, id: undefined, endpoint: m.endpoint + '-copy' } })}
@@ -337,10 +336,11 @@ export default function RoutesPage() {
 
       {viewModal && <ViewJsonModal title={viewModal.title} value={viewModal.value} onClose={() => setViewModal(null)} />}
 
+      {/* Soft delete confirmation */}
       {confirmDeleteMockId && (
         <ConfirmModal
           title="Delete route"
-          message="Are you sure?"
+          message="Are you sure? This will move the route to trash."
           confirmText="Delete"
           kind="danger"
           busy={confirmBusy}
@@ -351,6 +351,31 @@ export default function RoutesPage() {
             setMocks((prev) => prev.filter((m) => m.id !== confirmDeleteMockId))
             setConfirmDeleteMockId(null)
             setConfirmBusy(false)
+          }}
+        />
+      )}
+
+      {/* Permanent delete confirmation */}
+      {confirmPermanentDeleteId && (
+        <ConfirmModal
+          title="⚠️ Permanent Delete"
+          message="Deleting this permanently will mean it cannot be recovered anymore. Are you absolutely sure?"
+          confirmText="Permanently Delete"
+          kind="danger"
+          busy={confirmBusy}
+          onCancel={() => setConfirmPermanentDeleteId(null)}
+          onConfirm={async () => {
+            setConfirmBusy(true)
+            try {
+              await permanentlyDeleteMock(confirmPermanentDeleteId)
+              setMocks((prev) => prev.filter((m) => m.id !== confirmPermanentDeleteId))
+              setToast({ kind: 'success', message: 'Mock permanently deleted and archived.' })
+            } catch (e: any) {
+              setToast({ kind: 'error', message: e?.message || 'Failed to permanently delete' })
+            } finally {
+              setConfirmPermanentDeleteId(null)
+              setConfirmBusy(false)
+            }
           }}
         />
       )}

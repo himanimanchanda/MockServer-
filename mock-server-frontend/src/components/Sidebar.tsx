@@ -136,7 +136,7 @@ export default function Sidebar({ isOpen, toggle }: Props) {
       </div>
 
       {/* NAV */}
-      <nav className="flex flex-col gap-1 px-3 py-4 flex-1">
+      <nav className="flex flex-col gap-1 px-3 py-4 flex-1 overflow-y-auto">
         {navItems.map(({ to, label, icon }) => (
           <NavLink
             key={to}

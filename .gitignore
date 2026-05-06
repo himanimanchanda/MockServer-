@@ -7,6 +7,7 @@
 mock-server-backend/target/
 mock-server-backend/*.jar
 mock-server-backend/*.war
+mock-server-backend/*.log
 
 # Node.js (Frontend)
 mock-server-frontend/node_modules/
@@ -26,3 +27,6 @@ mock-server-frontend/.env.production.local
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Logs
+*.log

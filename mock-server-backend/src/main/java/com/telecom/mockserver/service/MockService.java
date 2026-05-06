@@ -35,6 +35,9 @@ public interface MockService {
 
     void recoverMock(UUID id);
 
+    /** Permanently delete a mock from trash — archives to PostgreSQL, removes from mocks table entirely */
+    void permanentlyDeleteMock(UUID id);
+
     MockExecutionResult execute(
             String requestPath,
             HttpMethodType requestMethod,

@@ -81,7 +81,7 @@ public class MockController {
         return ResponseEntity.ok(mockService.updateMock(id, request));
     }
 
-    // ========== DELETE ==========
+    // ========== DELETE (soft) ==========
 
     @DeleteMapping({"/api/mocks/{id}", "/routes/{id}"})
     public ResponseEntity<Void> deleteMock(@PathVariable("id") UUID id) {
@@ -95,5 +95,18 @@ public class MockController {
     public ResponseEntity<Void> recoverMock(@PathVariable("id") UUID id) {
         mockService.recoverMock(id);
         return ResponseEntity.ok().build();
+    }
+
+    // ========== PERMANENT DELETE ==========
+
+    /**
+     * Permanently delete a mock from trash.
+     * Archives to PostgreSQL `permanently_deleted_mocks` table then hard-deletes from `mocks`.
+     * The archived data is NEVER exposed via any API endpoint.
+     */
+    @DeleteMapping({"/api/mocks/{id}/permanent", "/routes/{id}/permanent"})
+    public ResponseEntity<Void> permanentlyDeleteMock(@PathVariable("id") UUID id) {
+        mockService.permanentlyDeleteMock(id);
+        return ResponseEntity.noContent().build();
     }
 }

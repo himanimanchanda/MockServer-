@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./mock-server-backend
+      dockerfile: Dockerfile
+    container_name: mock_backend
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # ==========================================
+      # AIRTEL TEAM: PLEASE FILL IN YOUR DB DETAILS HERE
+      # ==========================================
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://<ENTER_YOUR_DB_IP_HERE>:5432/<ENTER_YOUR_DB_NAME>
+      - SPRING_DATASOURCE_USERNAME=<ENTER_YOUR_DB_USERNAME>
+      - SPRING_DATASOURCE_PASSWORD=<ENTER_YOUR_DB_PASSWORD>
+      
+      # ==========================================
+      # AIRTEL TEAM: PLEASE FILL IN YOUR REDIS DETAILS HERE
+      # ==========================================
+      - SPRING_REDIS_HOST=<ENTER_YOUR_REDIS_IP_HERE>
+      - SPRING_REDIS_PORT=6379
+
+      # Do not change these unless required
+      - SPRING_DATASOURCE_DRIVER=org.postgresql.Driver
+      - SPRING_JPA_DATABASE_PLATFORM=org.hibernate.dialect.PostgreSQLDialect
+      - MOCKSERVER_AUTH_ENABLED=false
+      - MOCKSERVER_DEMO_SEED=true
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 45s
+
+  frontend:
+    build:
+      context: ./mock-server-frontend
+      dockerfile: Dockerfile
+    container_name: mock_frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy

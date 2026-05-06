@@ -18,6 +18,7 @@ export default function RouteList(props: {
   onTestApi?: (mock: MockDto) => void
   isTrash?: boolean
   onRecover?: (id: string) => void
+  onPermanentDelete?: (id: string) => void
 }) {
   return <RoutesTable {...props} />
 }
