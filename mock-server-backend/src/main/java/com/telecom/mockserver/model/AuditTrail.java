@@ -8,11 +8,8 @@ import java.time.Instant;
 /**
  * Unified audit trail entity.
  *
- * <p>Replaces the previous {@code user_action_audit_logs} + {@code mock_audit_history}
- * + {@code revision_info} + {@code deleted_mock_archives} (4 tables → 1 table).
- *
- * <p>All system events (CREATE, UPDATE, DELETE, RECOVER, PERMANENT_DELETE) are
- * recorded here, providing a single, queryable audit log for the entire platform.</p>
+ * <p>Records all system events (CREATE, UPDATE, DELETE, RECOVER, PERMANENT_DELETE)
+ * in a single queryable log for the entire platform.</p>
  */
 @Entity
 @Table(name = "audit_trail", indexes = {

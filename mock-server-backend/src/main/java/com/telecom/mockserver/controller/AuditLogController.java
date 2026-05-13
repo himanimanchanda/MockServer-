@@ -13,8 +13,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Unified audit trail controller.
- * Replaces the old Hibernate Envers approach with a single audit_trail table.
+ * REST controller exposing paginated audit trail logs.
  */
 @RestController
 @RequiredArgsConstructor

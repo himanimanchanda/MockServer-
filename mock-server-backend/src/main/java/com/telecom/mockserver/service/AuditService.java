@@ -6,10 +6,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 /**
- * Service interface for unified audit trail operations.
- *
- * <p>Replaces the old {@code EntityAuditLogService} while maintaining the same
- * contract. Internally uses the new {@code audit_trail} table via DAO layer.</p>
+ * Service interface for audit trail operations.
  */
 public interface AuditService {
 

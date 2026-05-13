@@ -15,13 +15,12 @@ import java.util.UUID;
 /**
  * Core mock endpoint entity.
  *
- * <p><b>OPTIMIZED:</b> Headers, query params, and response headers are stored as
- * PostgreSQL JSONB columns instead of separate join tables. This eliminates 3
- * join tables and their associated N+1 query overhead.</p>
+ * <p>Headers, query params, and response headers are stored as
+ * PostgreSQL JSONB columns for efficient single-query loading.</p>
  *
- * <p><b>Permanent delete</b> uses a flag ({@code isPermanentlyDeleted}) instead
- * of hard-deleting rows and archiving to a separate table. Data stays in the
- * database permanently for compliance, but is excluded from all queries.</p>
+ * <p>Permanent deletion uses a flag ({@code isPermanentlyDeleted}) to
+ * retain data in the database for compliance while excluding it from
+ * all runtime queries via {@code @SQLRestriction}.</p>
  */
 @Entity
 @Table(name = "mock_endpoints", indexes = {
@@ -62,28 +61,19 @@ public class Mock {
     @Column(nullable = false)
     private int statusCode;
 
-    /**
-     * Request headers — stored as JSONB.
-     * Replaces the old {@code mock_request_headers} join table.
-     */
+    /** Request headers stored as JSONB. */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb default '{}'")
     @Builder.Default
     private Map<String, String> headers = new HashMap<>();
 
-    /**
-     * Query parameters — stored as JSONB.
-     * Replaces the old {@code mock_request_query_params} join table.
-     */
+    /** Query parameters stored as JSONB. */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb default '{}'")
     @Builder.Default
     private Map<String, String> queryParams = new HashMap<>();
 
-    /**
-     * Response headers — stored as JSONB.
-     * Replaces the old {@code mock_response_headers} join table.
-     */
+    /** Response headers stored as JSONB. */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb default '{}'")
     @Builder.Default

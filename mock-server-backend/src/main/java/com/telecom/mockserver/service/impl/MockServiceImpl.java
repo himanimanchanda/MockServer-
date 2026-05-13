@@ -30,16 +30,10 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
- * Optimized mock service implementation.
+ * Service handling mock CRUD, execution, caching, and audit logging.
  *
- * <p><b>Key changes from v1:</b></p>
- * <ul>
- *   <li>Uses DAO layer (MockDao, ProjectDao) instead of direct repository access</li>
- *   <li>Permanent delete uses flag ({@code is_permanently_deleted}) instead of
- *       archiving to a separate table + hard-deleting from 4 tables</li>
- *   <li>Request logging removed (use audit trail for observability)</li>
- *   <li>Cache eviction is deferred until after transaction commit</li>
- * </ul>
+ * <p>Uses the DAO layer for persistence and defers cache eviction
+ * until after transaction commit to prevent stale reads.</p>
  */
 @Service
 @RequiredArgsConstructor

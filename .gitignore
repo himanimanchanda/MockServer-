@@ -43,3 +43,5 @@ desktop.ini
 # ── Docker volumes / data ─────────────────────────────
 postgres_data/
 redis_data/
+
+MockServer_Manager_Guide.md
