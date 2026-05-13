@@ -4,10 +4,15 @@ import com.telecom.mockserver.dto.response.MockDto;
 import com.telecom.mockserver.model.Mock;
 import com.telecom.mockserver.util.JsonUtils;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Component;
 
 /**
- * Mapper for converting Mock entity ↔ MockDto.
+ * Mapper for converting {@link Mock} entity → {@link MockDto}.
+ *
+ * <p>Uses {@link BeanUtils#copyProperties} for clean, optimized field copying.
+ * Only fields that need transformation (e.g., responseBody String → JsonNode)
+ * are handled manually.</p>
  */
 @Component
 @RequiredArgsConstructor
@@ -15,29 +20,17 @@ public class MockMapper {
 
     private final JsonUtils jsonUtils;
 
-    public MockDto toDto(Mock m) {
-        return MockDto.builder()
-                .id(m.getId())
-                .projectId(m.getProjectId())
-                .endpoint(m.getEndpoint())
-                .method(m.getMethod())
-                .requestBody(m.getRequestBody())
-                .responseBody(jsonUtils.parseToJsonNode(m.getResponseBody()))
-                .statusCode(m.getStatusCode())
-                .headers(m.getHeaders() == null ? null : new java.util.HashMap<>(m.getHeaders()))
-                .queryParams(m.getQueryParams() == null ? null : new java.util.HashMap<>(m.getQueryParams()))
-                .responseHeaders(m.getResponseHeaders() == null ? null : new java.util.HashMap<>(m.getResponseHeaders()))
-                .delayMs(m.getDelayMs())
-                .contentType(m.getContentType())
-                .isTemp(m.getIsTemp())
-                .toggleResponse(m.getToggleResponse())
-                .environment(m.getEnvironment())
-                .testCase(m.getTestCase())
-                .description(m.getDescription())
-                .createdAt(m.getCreatedAt())
-                .updatedAt(m.getUpdatedAt())
-                .createdBy(m.getCreatedBy())
-                .updatedBy(m.getUpdatedBy())
-                .build();
+    /**
+     * Converts a Mock entity to a MockDto.
+     *
+     * <p>BeanUtils copies all matching fields automatically.
+     * Only {@code responseBody} needs custom handling because the entity
+     * stores it as a String, but the DTO exposes it as a JsonNode.</p>
+     */
+    public MockDto toDto(Mock mock) {
+        MockDto dto = new MockDto();
+        BeanUtils.copyProperties(mock, dto, "responseBody");
+        dto.setResponseBody(jsonUtils.parseToJsonNode(mock.getResponseBody()));
+        return dto;
     }
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { API_BASE_URL } from "../utils/curl";
 
 const CurlPreview = ({ endpoint, method, headers, body }: any) => {
   const [curl, setCurl] = useState("");
@@ -9,7 +10,7 @@ const CurlPreview = ({ endpoint, method, headers, body }: any) => {
       return;
     }
 
-    let c = `curl -X ${method} "http://localhost:8080${endpoint}"`;
+    let c = `curl -X ${method} "${API_BASE_URL}${endpoint}"`;
 
     if (headers) {
       Object.entries(headers).forEach(([k, v]) => {

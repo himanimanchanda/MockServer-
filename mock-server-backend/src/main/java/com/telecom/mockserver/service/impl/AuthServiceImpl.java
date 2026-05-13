@@ -6,7 +6,7 @@ import com.telecom.mockserver.auth.LoginRequest;
 import com.telecom.mockserver.dto.response.AuthResponse;
 import com.telecom.mockserver.exception.BadRequestException;
 import com.telecom.mockserver.model.User;
-import com.telecom.mockserver.repository.UserJpaRepository;
+import com.telecom.mockserver.dao.UserDao;
 import com.telecom.mockserver.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,7 +21,7 @@ import java.util.UUID;
 @Slf4j
 public class AuthServiceImpl implements AuthService {
 
-    private final UserJpaRepository userRepository;
+    private final UserDao userDao;
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
 
@@ -31,10 +31,10 @@ public class AuthServiceImpl implements AuthService {
         String olmId = request.getOlmId().trim().toLowerCase();
         String email = request.getEmail().trim().toLowerCase();
 
-        if (userRepository.existsByOlmId(olmId)) {
+        if (userDao.existsByOlmId(olmId)) {
             throw new BadRequestException("OLM ID already exists: " + olmId);
         }
-        if (userRepository.existsByEmail(email)) {
+        if (userDao.existsByEmail(email)) {
             throw new BadRequestException("Email already exists: " + email);
         }
 
@@ -46,7 +46,7 @@ public class AuthServiceImpl implements AuthService {
                 .createdAt(java.time.Instant.now())
                 .build();
 
-        userRepository.save(user);
+        userDao.save(user);
         log.info("User registered: {}", olmId);
 
         String token = jwtService.issueToken(olmId);
@@ -64,7 +64,7 @@ public class AuthServiceImpl implements AuthService {
     public AuthResponse login(LoginRequest request) {
         String olmId = request.getOlmId().trim().toLowerCase();
 
-        User user = userRepository.findByOlmId(olmId)
+        User user = userDao.findByOlmId(olmId)
                 .orElseThrow(() -> new BadRequestException("Invalid OLM ID or password"));
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {

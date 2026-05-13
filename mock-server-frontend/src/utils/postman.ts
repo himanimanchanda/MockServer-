@@ -58,7 +58,7 @@ export function exportToPostman(mocks: MockDto[], projectName: string = 'Mock Se
     variable: [
       {
         key: 'base_url',
-        value: 'http://localhost:8080',
+        value: typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8080',
         type: 'string',
       },
     ],

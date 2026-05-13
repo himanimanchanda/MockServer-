@@ -1,7 +1,7 @@
 package com.telecom.mockserver.service.impl;
 
+import com.telecom.mockserver.dao.MockDao;
 import com.telecom.mockserver.model.Mock;
-import com.telecom.mockserver.repository.MockJpaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -30,20 +30,20 @@ import java.util.List;
 @Slf4j
 public class MockCacheService {
 
-    private final MockJpaRepository mockRepository;
+    private final MockDao mockDao;
 
     /**
      * Returns all mocks ordered for routing, served from Caffeine cache.
      * Cache key is fixed ("all") since we cache the entire mock list.
      *
-     * IMPORTANT: We force-initialize all LAZY @ElementCollection maps
-     * inside this @Transactional method so they survive outside the session.
+     * IMPORTANT: We create clean POJO copies so they survive outside
+     * the Hibernate session (no LazyInitializationException).
      */
     @Cacheable(value = "allMocksOrdered", key = "'all'")
     @Transactional(readOnly = true)
     public List<Mock> getCachedMocks() {
         log.info("Cache MISS — loading all mocks from database");
-        List<Mock> mocks = mockRepository.findAllOrdered();
+        List<Mock> mocks = mockDao.findAllOrdered();
 
         // CRITICAL FIX: Hibernate proxies and PersistentMap collections will throw 
         // LazyInitializationException if deserialized from Redis (due to Jackson default typing 

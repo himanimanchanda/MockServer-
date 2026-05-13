@@ -79,14 +79,7 @@
     </logger>
 
     <!-- Audit-specific logger (writes to audit file) -->
-    <logger name="com.telecom.mockserver.service.impl.EntityAuditLogServiceImpl" level="DEBUG" additivity="false">
-        <appender-ref ref="CONSOLE" />
-        <appender-ref ref="FILE" />
-        <appender-ref ref="AUDIT_FILE" />
-    </logger>
-
-    <!-- Request log persistence -->
-    <logger name="com.telecom.mockserver.service.impl.RequestLogPersistenceService" level="DEBUG" additivity="false">
+    <logger name="com.telecom.mockserver.service.impl.AuditServiceImpl" level="DEBUG" additivity="false">
         <appender-ref ref="CONSOLE" />
         <appender-ref ref="FILE" />
         <appender-ref ref="AUDIT_FILE" />

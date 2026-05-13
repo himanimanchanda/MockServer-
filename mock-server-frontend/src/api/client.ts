@@ -4,7 +4,6 @@ import type {
   CreateMockRequest,
   Environment,
   HttpMethod,
-  LogEntryDto,
   MockDto,
   ProjectDto,
   SpringPage,
@@ -197,35 +196,6 @@ export async function deleteProject(projectId: string): Promise<void> {
 export async function listAuditLogs(page = 0, size = 20): Promise<SpringPage<AuditLogDto>> {
   const res = await api.get('/api/audit-logs', { params: { page, size } })
   return res.data
-}
-
-// ─── logs ─────────────────────────────────────────────────────────────────────
-
-export async function listLogs(limit = 200): Promise<LogEntryDto[]> {
-  const res = await api.get('/api/logs', { params: { limit } })
-  return res.data
-}
-
-/**
- * Download logs backup as a JSON file.
- */
-export async function downloadLogsBackup(): Promise<void> {
-  const res = await api.get('/api/logs/backup', {
-    responseType: 'blob',
-    params: { limit: 5000 },
-  })
-  const blob = new Blob([res.data], { type: 'application/json' })
-  const url = window.URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = res.headers['content-disposition']?.match(/filename="?(.+?)"?$/)?.[1]
-    || `logs-backup-${new Date().toISOString().slice(0, 10)}.json`
-  document.body.appendChild(a)
-  a.click()
-  setTimeout(() => {
-    window.URL.revokeObjectURL(url)
-    document.body.removeChild(a)
-  }, 100)
 }
 
 // ─── migration ────────────────────────────────────────────────────────────────

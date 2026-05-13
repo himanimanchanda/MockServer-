@@ -5,7 +5,13 @@ import com.telecom.mockserver.dto.response.EntityAuditLogDto;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
-public interface EntityAuditLogService {
+/**
+ * Service interface for unified audit trail operations.
+ *
+ * <p>Replaces the old {@code EntityAuditLogService} while maintaining the same
+ * contract. Internally uses the new {@code audit_trail} table via DAO layer.</p>
+ */
+public interface AuditService {
 
     void record(String entityType, String entityId, AuditAction action, String summary);
 

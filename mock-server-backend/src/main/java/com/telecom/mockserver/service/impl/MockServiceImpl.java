@@ -1,7 +1,8 @@
 package com.telecom.mockserver.service.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.telecom.mockserver.dao.MockDao;
+import com.telecom.mockserver.dao.ProjectDao;
 import com.telecom.mockserver.dto.request.CreateMockRequestDto;
 import com.telecom.mockserver.dto.request.UpdateMockRequestDto;
 import com.telecom.mockserver.dto.response.MockDto;
@@ -11,12 +12,8 @@ import com.telecom.mockserver.exception.BadRequestException;
 import com.telecom.mockserver.exception.NotFoundException;
 import com.telecom.mockserver.mapper.MockMapper;
 import com.telecom.mockserver.model.*;
-import com.telecom.mockserver.repository.MockJpaRepository;
-import com.telecom.mockserver.repository.PermanentlyDeletedMockRepository;
-import com.telecom.mockserver.repository.ProjectJpaRepository;
 
-import com.telecom.mockserver.model.AuditAction;
-import com.telecom.mockserver.service.EntityAuditLogService;
+import com.telecom.mockserver.service.AuditService;
 import com.telecom.mockserver.service.MockService;
 import com.telecom.mockserver.util.JsonUtils;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +29,18 @@ import java.util.stream.Collectors;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+/**
+ * Optimized mock service implementation.
+ *
+ * <p><b>Key changes from v1:</b></p>
+ * <ul>
+ *   <li>Uses DAO layer (MockDao, ProjectDao) instead of direct repository access</li>
+ *   <li>Permanent delete uses flag ({@code is_permanently_deleted}) instead of
+ *       archiving to a separate table + hard-deleting from 4 tables</li>
+ *   <li>Request logging removed (use audit trail for observability)</li>
+ *   <li>Cache eviction is deferred until after transaction commit</li>
+ * </ul>
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -43,27 +52,20 @@ public class MockServiceImpl implements MockService {
     private static final long MAX_DELAY_MS = 30_000L; // 30s safety cap
     private static final String REDIS_MOCK_KEY_PREFIX = "mock:endpoint:";
 
-    private final MockJpaRepository mockRepository;
-    private final RequestLogPersistenceService requestLogPersistenceService;
+    private final MockDao mockDao;
+    private final ProjectDao projectDao;
     private final MockRoutingEngine mockRoutingEngine;
     private final JsonUtils jsonUtils;
     private final DynamicTemplateEngine dynamicTemplateEngine;
-    private final ProjectJpaRepository projectRepository;
     private final MockMapper mockMapper;
     private final MockCacheService mockCacheService;
-    private final EntityAuditLogService entityAuditLogService;
-    private final PermanentlyDeletedMockRepository permanentlyDeletedMockRepository;
+    private final AuditService auditService;
     private final StringRedisTemplate stringRedisTemplate;
-    private final ObjectMapper objectMapper;
 
     // =========================================================================
     //  REDIS PER-MOCK KEY MANAGEMENT
     // =========================================================================
 
-    /**
-     * Store a mock's endpoint in Redis with key = mock:endpoint:{id}
-     * Value = JSON with method, endpoint, environment, statusCode
-     */
     private void storeMockInRedis(Mock m) {
         try {
             String key = REDIS_MOCK_KEY_PREFIX + m.getId().toString();
@@ -102,7 +104,7 @@ public class MockServiceImpl implements MockService {
         Mock m = buildMock(UUID.randomUUID(), req);
 
         // Duplicate check: method + endpoint + environment must be unique
-        if (mockRepository.existsByMethodAndEndpointAndEnvironment(
+        if (mockDao.existsByMethodAndEndpointAndEnvironment(
                 m.getMethod(), m.getEndpoint(), m.getEnvironment())) {
             throw new BadRequestException(
                     "Mock already exists for " + m.getMethod() + " " + m.getEndpoint()
@@ -110,13 +112,13 @@ public class MockServiceImpl implements MockService {
                             + "Use update (PUT) to modify the existing mock.");
         }
 
-        mockRepository.save(m);
+        mockDao.save(m);
         deferCacheEviction();
 
         // Store in Redis per-mock
         storeMockInRedis(m);
 
-        entityAuditLogService.recordWithDetails(
+        auditService.recordWithDetails(
                 "MOCK", m.getId().toString(), AuditAction.CREATE,
                 m.getMethod() + " " + m.getEndpoint() + " [" + m.getEnvironment() + "]",
                 m.getEndpoint(),
@@ -131,8 +133,7 @@ public class MockServiceImpl implements MockService {
     @Override
     @Transactional(readOnly = true)
     public List<MockDto> listMocks() {
-        // Use ordered query — latest routes appear consistently
-        return mockRepository.findAllOrdered().stream()
+        return mockDao.findAllOrdered().stream()
                 .map(mockMapper::toDto)
                 .collect(Collectors.toList());
     }
@@ -140,7 +141,7 @@ public class MockServiceImpl implements MockService {
     @Override
     @Transactional(readOnly = true)
     public List<MockDto> listMocksForProject(UUID projectId) {
-        return mockRepository.findByProjectIdOrdered(projectId).stream()
+        return mockDao.findByProjectIdOrdered(projectId).stream()
                 .map(mockMapper::toDto)
                 .collect(Collectors.toList());
     }
@@ -148,7 +149,7 @@ public class MockServiceImpl implements MockService {
     @Override
     @Transactional(readOnly = true)
     public List<MockDto> listMocksForEnvironment(Environment env) {
-        return mockRepository.findAllOrdered().stream()
+        return mockDao.findAllOrdered().stream()
                 .filter(m -> m.getEnvironment() == env)
                 .map(mockMapper::toDto)
                 .collect(Collectors.toList());
@@ -157,7 +158,7 @@ public class MockServiceImpl implements MockService {
     @Override
     @Transactional(readOnly = true)
     public List<MockDto> listDeletedMocks() {
-        return mockRepository.findDeletedMocksNative().stream()
+        return mockDao.findDeletedMocksNative().stream()
                 .map(mockMapper::toDto)
                 .collect(Collectors.toList());
     }
@@ -166,7 +167,7 @@ public class MockServiceImpl implements MockService {
     @Transactional(readOnly = true)
     public List<MockDto> searchMocks(String query) {
         String q = query == null ? "" : query.trim().toLowerCase();
-        return mockRepository.findAllOrdered().stream()
+        return mockDao.findAllOrdered().stream()
                 .filter(m -> {
                     String ep  = Optional.ofNullable(m.getEndpoint()).orElse("").toLowerCase();
                     String met = Optional.ofNullable(m.getMethod()).map(Enum::name).orElse("").toLowerCase();
@@ -180,24 +181,24 @@ public class MockServiceImpl implements MockService {
     @Override
     @Transactional
     public MockDto updateMock(UUID id, UpdateMockRequestDto req) {
-        if (!mockRepository.existsById(id)) throw new NotFoundException("Mock not found: " + id);
+        if (mockDao.findById(id).isEmpty()) throw new NotFoundException("Mock not found: " + id);
         log.debug("Updating mock: id={}", id);
         Mock m = buildMock(id, req);
 
         // Duplicate check on update: exclude self
-        if (mockRepository.existsDuplicate(m.getMethod(), m.getEndpoint(), m.getEnvironment(), id)) {
+        if (mockDao.existsDuplicate(m.getMethod(), m.getEndpoint(), m.getEnvironment(), id)) {
             throw new BadRequestException(
                     "Another mock already exists for " + m.getMethod() + " " + m.getEndpoint()
                             + " [env=" + m.getEnvironment() + "].");
         }
 
-        mockRepository.save(m);
+        mockDao.save(m);
         deferCacheEviction();
 
         // Update in Redis
         storeMockInRedis(m);
 
-        entityAuditLogService.recordWithDetails(
+        auditService.recordWithDetails(
                 "MOCK", m.getId().toString(), AuditAction.UPDATE,
                 m.getMethod() + " " + m.getEndpoint() + " [" + m.getEnvironment() + "]",
                 m.getEndpoint(),
@@ -212,80 +213,51 @@ public class MockServiceImpl implements MockService {
     @Override
     @Transactional
     public void deleteMock(UUID id) {
-        if (!mockRepository.existsById(id)) throw new NotFoundException("Mock not found: " + id);
-        // This will call the @SQLDelete native query behind the scenes (soft delete)
-        mockRepository.deleteById(id);
+        if (mockDao.findById(id).isEmpty()) throw new NotFoundException("Mock not found: " + id);
+        mockDao.save(mockDao.findById(id).map(m -> { m.setDeleted(true); return m; }).get());
         deferCacheEviction();
 
-        // Remove from Redis (soft-deleted, should not be in active cache)
+        // Remove from Redis
         removeMockFromRedis(id);
 
-        entityAuditLogService.record("MOCK", id.toString(), AuditAction.DELETE, "soft-delete → moved to trash");
+        auditService.record("MOCK", id.toString(), AuditAction.DELETE, "soft-delete → moved to trash");
         log.info("Mock soft-deleted: id={}", id);
     }
 
     @Override
     @Transactional
     public void recoverMock(UUID id) {
-        // Get mock details before recovery for Redis storage
-        Optional<Mock> deletedMock = mockRepository.findDeletedMockById(id.toString());
+        Optional<Mock> deletedMock = mockDao.findDeletedMockById(id.toString());
 
-        mockRepository.recoverMockNative(id.toString());
+        mockDao.recoverMockNative(id.toString());
         deferCacheEviction();
 
         // Re-add to Redis after recovery
         deletedMock.ifPresent(this::storeMockInRedis);
 
-        entityAuditLogService.record("MOCK", id.toString(), AuditAction.RECOVER, "restored from trash");
+        auditService.record("MOCK", id.toString(), AuditAction.RECOVER, "restored from trash");
         log.info("Mock recovered: id={}", id);
     }
 
+    /**
+     * Permanent delete — sets is_permanently_deleted flag.
+     * Data stays in the database forever for compliance, but is excluded from all queries.
+     * No more hard-delete + archive to separate table.
+     */
     @Override
     @Transactional
     public void permanentlyDeleteMock(UUID id) {
-        // 1. Find the soft-deleted mock (bypassing @SQLRestriction)
-        Mock mock = mockRepository.findDeletedMockById(id.toString())
+        Mock mock = mockDao.findDeletedMockById(id.toString())
                 .orElseThrow(() -> new NotFoundException(
                         "Mock not found in trash: " + id + ". Only soft-deleted mocks can be permanently deleted."));
 
-        // 2. Archive to permanently_deleted_mocks table (stored in PG, never fetchable via API)
-        String fullSnapshot = "{}";
-        try {
-            fullSnapshot = objectMapper.writeValueAsString(mockMapper.toDto(mock));
-        } catch (Exception e) {
-            log.warn("Failed to serialize mock snapshot for archival: {}", e.getMessage());
-        }
-
-        permanentlyDeletedMockRepository.save(PermanentlyDeletedMock.builder()
-                .originalMockId(mock.getId().toString())
-                .endpoint(mock.getEndpoint())
-                .method(mock.getMethod() != null ? mock.getMethod().name() : "UNKNOWN")
-                .projectId(mock.getProjectId() != null ? mock.getProjectId().toString() : null)
-                .requestBody(mock.getRequestBody())
-                .responseBody(mock.getResponseBody())
-                .statusCode(mock.getStatusCode())
-                .contentType(mock.getContentType())
-                .environment(mock.getEnvironment() != null ? mock.getEnvironment().name() : null)
-                .testCase(mock.getTestCase())
-                .description(mock.getDescription())
-                .deletedAt(Instant.now())
-                .fullSnapshot(fullSnapshot)
-                .build());
-
-        // 3. Hard delete from all tables (collection tables first, then main table)
-        String idStr = id.toString();
-        mockRepository.hardDeleteHeaders(idStr);
-        mockRepository.hardDeleteQueryParams(idStr);
-        mockRepository.hardDeleteResponseHeaders(idStr);
-        mockRepository.hardDeleteById(idStr);
+        // Simply flag as permanently deleted — data stays in DB forever
+        mockDao.permanentlyDeleteById(id.toString());
 
         deferCacheEviction();
-
-        // 4. Remove from Redis
         removeMockFromRedis(id);
 
-        // 5. Record audit with full details
-        entityAuditLogService.recordWithDetails(
+        auditService.recordWithDetails(
                 "MOCK", id.toString(), AuditAction.PERMANENT_DELETE,
                 "PERMANENTLY DELETED: " + (mock.getMethod() != null ? mock.getMethod().name() : "") + " " + mock.getEndpoint(),
                 mock.getEndpoint(),
@@ -299,6 +271,11 @@ public class MockServiceImpl implements MockService {
                 mock.getEndpoint());
     }
 
+    /**
+     * Defers cache eviction until after the transaction commits.
+     * This prevents other threads from reading stale cache between
+     * eviction and commit.
+     */
     private void deferCacheEviction() {
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -330,7 +307,7 @@ public class MockServiceImpl implements MockService {
 
         // Fetch mocks from Caffeine cache — zero DB hit on warm cache
         List<Mock> candidates = mockCacheService.getCachedMocks();
-        log.debug("  Total mocks in DB: {}", candidates.size());
+        log.debug("  Total mocks in cache: {}", candidates.size());
 
         Optional<MockMatch> match = mockRoutingEngine.findBestMatchV2(
                 candidates, requestPath, requestMethod,
@@ -341,11 +318,6 @@ public class MockServiceImpl implements MockService {
         if (match.isEmpty()) {
             log.info("✗ No mock matched: {} {} [env={}]", requestMethod, requestPath, environment);
 
-            // Log unmatched request — isolated transaction so it always commits
-            saveRequestLogSafe(requestPath, requestMethod, queryParams, headersLower,
-                    requestBody, now, null, null, null, false);
-
-            // NEVER return empty — always return a guaranteed 404 response
             String notFoundJson = String.format(
                     "{\"status\":404,\"message\":\"No mock matched\",\"path\":\"%s\"}",
                     requestPath.replace("\"", "\\\""));
@@ -368,7 +340,7 @@ public class MockServiceImpl implements MockService {
         // Apply delay with safety cap
         long delayMs = Optional.ofNullable(mock.getDelayMs()).orElse(0L);
         if (delayMs > 0) {
-            delayMs = Math.min(delayMs, MAX_DELAY_MS); // prevent infinite wait
+            delayMs = Math.min(delayMs, MAX_DELAY_MS);
             log.debug("  Applying delay: {}ms", delayMs);
             try { TimeUnit.MILLISECONDS.sleep(delayMs); }
             catch (InterruptedException e) { Thread.currentThread().interrupt(); }
@@ -392,54 +364,7 @@ public class MockServiceImpl implements MockService {
                 .build();
 
         log.debug("  Response built: status={}, contentType={}", statusCode, mock.getContentType());
-
-        // Log matched request — isolated transaction so it always commits
-        String responseBodyStr = resolvedBody != null ? resolvedBody.toString() : null;
-        saveRequestLogSafe(requestPath, requestMethod, queryParams, headersLower,
-                requestBody, now, mock.getId(), responseBodyStr, statusCode, true);
-
         return result;
-    }
-
-    // =========================================================================
-    //  REQUEST LOGGING — Always commits, even if outer transaction rolls back
-    // =========================================================================
-
-    /**
-     * Wrapper that catches ALL exceptions so request never breaks due to logging.
-     * Delegates to RequestLogPersistenceService which runs in REQUIRES_NEW transaction.
-     */
-    private void saveRequestLogSafe(
-            String endpoint,
-            HttpMethodType method,
-            Map<String, String> queryParams,
-            Map<String, String> headers,
-            JsonNode requestBody,
-            Instant timestamp,
-            UUID matchedMockId,
-            String responseBody,
-            Integer responseStatusCode,
-            boolean matched
-    ) {
-        try {
-            RequestLog logEntry = RequestLog.builder()
-                    .endpoint(endpoint)
-                    .method(method.name())
-                    .timestamp(timestamp)
-                    .matchedMockId(matchedMockId)
-                    .requestHeaders(jsonUtils.toJsonString(headers))
-                    .requestBody(requestBody != null ? requestBody.toString() : null)
-                    .queryParams(jsonUtils.toJsonString(queryParams))
-                    .responseBody(responseBody)
-                    .responseStatusCode(responseStatusCode)
-                    .matched(matched)
-                    .build();
-            // Separate service = separate Spring proxy = REQUIRES_NEW actually works
-            requestLogPersistenceService.persist(logEntry);
-        } catch (Exception e) {
-            // NEVER let logging failure crash the request
-            log.error("Failed to save request log for {} {}: {}", method, endpoint, e.getMessage(), e);
-        }
     }
 
     // =========================================================================
@@ -470,7 +395,6 @@ public class MockServiceImpl implements MockService {
             return resolved;
         } catch (Exception e) {
             log.warn("Response resolution failed for mockId={}: {}", mock.getId(), e.getMessage());
-            // Fallback: return the raw response body as-is
             try {
                 return jsonUtils.parseToJsonNode(mock.getResponseBody());
             } catch (Exception fallbackEx) {
@@ -488,12 +412,10 @@ public class MockServiceImpl implements MockService {
 
         UUID projectId = resolveProjectId(req.getProjectId());
 
-        // Validate method
         if (req.getMethod() == null) {
             throw new BadRequestException("method is required (GET, POST, PUT, PATCH, DELETE)");
         }
 
-        // Validate endpoint length
         String endpoint = normalizeEndpoint(req.getEndpoint());
         if (endpoint.length() > MAX_ENDPOINT_LENGTH) {
             throw new BadRequestException("endpoint is too long (max " + MAX_ENDPOINT_LENGTH + " characters)");
@@ -503,14 +425,12 @@ public class MockServiceImpl implements MockService {
             throw new BadRequestException("Invalid statusCode: " + req.getStatusCode());
         }
 
-        // Validate and parse response body (null-safe now)
         String responseBodyRaw = req.getResponseBody();
         if (responseBodyRaw == null || responseBodyRaw.isBlank()) {
             responseBodyRaw = "{}";
         }
         JsonNode responseJson = jsonUtils.parseToJsonNode(responseBodyRaw);
 
-        // Pick delay from either field (frontend sends "delay" as int)
         long delayMs = 0L;
         if (req.getDelayMs() != null && req.getDelayMs() > 0) {
             delayMs = req.getDelayMs();
@@ -543,11 +463,6 @@ public class MockServiceImpl implements MockService {
                 .build();
     }
 
-    /**
-     * Convert [{key, value, dynamic}] list → flat Map<String,String>.
-     * Falls back to plain map if list is null/empty.
-     * If dynamic=true, prefixes value with $ so engine can resolve it.
-     */
     private Map<String, String> buildMap(
             List<Map<String, Object>> list,
             Map<String, String> fallback
@@ -572,15 +487,15 @@ public class MockServiceImpl implements MockService {
 
     private UUID resolveProjectId(UUID requested) {
         if (requested == null) {
-            if (projectRepository.count() == 0) {
-                Project def = Project.builder().id(UUID.randomUUID()).name("Default").build();
-                projectRepository.save(def);
+            if (projectDao.count() == 0) {
+                Project def = Project.builder().id(UUID.randomUUID()).name("Default").createdBy("system").build();
+                projectDao.save(def);
             }
-            return projectRepository.findAll().stream()
+            return projectDao.findAll().stream()
                     .findFirst().map(Project::getId)
                     .orElseThrow(() -> new BadRequestException("No project found. Create one first."));
         }
-        if (!projectRepository.existsById(requested)) {
+        if (!projectDao.existsById(requested)) {
             throw new BadRequestException("Invalid projectId: " + requested);
         }
         return requested;
@@ -588,7 +503,7 @@ public class MockServiceImpl implements MockService {
 
     private String resolveProjectName(UUID projectId) {
         if (projectId == null) return null;
-        return projectRepository.findById(projectId)
+        return projectDao.findById(projectId)
                 .map(Project::getName)
                 .orElse(null);
     }
@@ -597,7 +512,6 @@ public class MockServiceImpl implements MockService {
         if (ep == null || ep.isBlank()) throw new BadRequestException("endpoint is required");
         String normalized = ep.trim();
         normalized = normalized.startsWith("/") ? normalized : "/" + normalized;
-        // Convert Express-style params (:id) to Spring AntPathMatcher params ({id})
         return normalized.replaceAll(":([a-zA-Z0-9_]+)", "{$1}");
     }
 }

@@ -12,7 +12,6 @@ import { generateCurl, parseCurlToForm } from '../utils/curl'
 import { listProjects, createProject } from '../api/client'
 import Toast from './Toast'
 
-const API_BASE = 'http://localhost:8080'
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 

@@ -12,7 +12,7 @@ import java.util.UUID;
  * User entity — stores registered users with hashed passwords.
  */
 @Entity
-@Table(name = "users")
+@Table(name = "system_users")
 @Data
 @Builder
 @NoArgsConstructor

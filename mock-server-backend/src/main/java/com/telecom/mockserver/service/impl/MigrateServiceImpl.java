@@ -1,10 +1,10 @@
 package com.telecom.mockserver.service.impl;
 
+import com.telecom.mockserver.dao.ProjectDao;
 import com.telecom.mockserver.dto.request.CreateMockRequestDto;
 import com.telecom.mockserver.dto.request.MigrateRequestDto;
 import com.telecom.mockserver.dto.response.MockDto;
 import com.telecom.mockserver.exception.BadRequestException;
-import com.telecom.mockserver.repository.ProjectJpaRepository;
 import com.telecom.mockserver.service.MigrateService;
 import com.telecom.mockserver.service.MockService;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
 public class MigrateServiceImpl implements MigrateService {
 
     private final MockService mockService;
-    private final ProjectJpaRepository projectRepository;
+    private final ProjectDao projectDao;
 
     @Override
     @Transactional
@@ -31,10 +31,10 @@ public class MigrateServiceImpl implements MigrateService {
         if (from.equals(to)) {
             throw new BadRequestException("fromProjectId and toProjectId must be different");
         }
-        if (!projectRepository.existsById(from)) {
+        if (!projectDao.existsById(from)) {
             throw new BadRequestException("Invalid fromProjectId: " + from);
         }
-        if (!projectRepository.existsById(to)) {
+        if (!projectDao.existsById(to)) {
             throw new BadRequestException("Invalid toProjectId: " + to);
         }
 

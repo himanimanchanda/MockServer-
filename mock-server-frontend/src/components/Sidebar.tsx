@@ -86,7 +86,6 @@ const navItems = [
   { to: '/routes',       label: 'Routes',     icon: icons.routes },
   { to: '/projects',     label: 'Projects',   icon: icons.projects },
   { to: '/test-api',     label: 'Test API',   icon: icons.testApi },
-  { to: '/logs',         label: 'Logs',       icon: icons.logs },
   { to: '/audit',        label: 'Audit',      icon: icons.audit },
 ]
 

@@ -2,8 +2,7 @@ import React from 'react'
 import type { Environment, HttpMethod, MockDto } from '../types'
 import Toast from './Toast'
 import { getAuthToken } from '../api/client'
-
-const API_BASE_URL = 'http://localhost:8080'
+import { API_BASE_URL } from '../utils/curl'
 
 function extractPathVars(endpointTemplate: string): string[] {
   const vars = new Set<string>()
@@ -62,6 +61,7 @@ export default function CurlModal({
 
   const curl = React.useMemo(() => {
     const method = mock.method
+    const ct = mock.contentType ?? 'application/json'
     const parts: string[] = [`curl -X ${method} "${urlWithQuery}"`]
     const token = getAuthToken()
     if (token) {
@@ -80,13 +80,37 @@ export default function CurlModal({
 
     const bodyRaw = mock.requestBody ? String(mock.requestBody) : ''
     if (bodyRaw.trim().length > 0 && (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE')) {
-      const escaped = escapeForSingleQuotes(bodyRaw.trim())
-      parts.push(`-H "Content-Type: application/json"`)
-      parts.push(`-d '${escaped}'`)
+      if (ct.includes('multipart/form-data')) {
+        // form-data: parse JSON body into -F flags
+        try {
+          const parsed = JSON.parse(bodyRaw.trim())
+          Object.entries(parsed).forEach(([key, value]) => {
+            parts.push(`-F '${key}=${String(value)}'`)
+          })
+        } catch {
+          parts.push(`-F '${escapeForSingleQuotes(bodyRaw.trim())}'`)
+        }
+      } else if (ct.includes('x-www-form-urlencoded')) {
+        // URL-encoded
+        parts.push(`-H "Content-Type: application/x-www-form-urlencoded"`)
+        try {
+          const parsed = JSON.parse(bodyRaw.trim())
+          Object.entries(parsed).forEach(([key, value]) => {
+            parts.push(`--data-urlencode '${key}=${String(value)}'`)
+          })
+        } catch {
+          parts.push(`--data-urlencode '${escapeForSingleQuotes(bodyRaw.trim())}'`)
+        }
+      } else {
+        // JSON (default)
+        const escaped = escapeForSingleQuotes(bodyRaw.trim())
+        parts.push(`-H "Content-Type: ${ct}"`)
+        parts.push(`-d '${escaped}'`)
+      }
     }
 
     return parts.join(' \\\n ')
-  }, [mock.method, mock.environment, mock.headers, mock.requestBody, urlWithQuery])
+  }, [mock.method, mock.environment, mock.headers, mock.requestBody, mock.contentType, urlWithQuery])
 
   async function copy() {
     try {
