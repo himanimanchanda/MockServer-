@@ -88,6 +88,18 @@ public class DemoDataSeeder {
                     "{\"id\":\"{productId}\",\"name\":\"Premium Widget\",\"price\":99.99,\"category\":\"Electronics\",\"rating\":4.5,\"reviews\":128}",
                     0L, "Product detail", "Dynamic product detail with path param."));
 
+            allMockIds.add(saveMock(mockRepo, p1, Environment.DEV, HttpMethodType.POST,
+                    "/demo/upload", 200, "application/json",
+                    Map.of("X-Mocked", "true"),
+                    "{\"message\":\"File uploaded successfully\",\"fileId\":\"{uuid}\",\"size\":\"1.2MB\"}",
+                    0L, "Multipart form-data upload", "Simulates a file upload endpoint."));
+
+            allMockIds.add(saveMock(mockRepo, p1, Environment.DEV, HttpMethodType.POST,
+                    "/demo/login", 200, "application/json",
+                    Map.of("X-Mocked", "true", "Set-Cookie", "session_id={uuid}; Path=/; HttpOnly"),
+                    "{\"message\":\"Login successful\",\"token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\"}",
+                    0L, "Form URL-encoded login", "Simulates a form login endpoint."));
+
             allMockIds.add(saveMock(mockRepo, p1, Environment.QA, HttpMethodType.GET,
                     "/demo/health", 200, "application/json",
                     Map.of("X-Mocked", "true", "X-Env", "QA"),

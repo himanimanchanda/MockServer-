@@ -87,6 +87,40 @@ public class MockServiceImpl implements MockService {
         }
     }
 
+    /**
+     * Defers Redis store until after the transaction commits.
+     * Prevents Redis from getting stale data if PostgreSQL rolls back.
+     */
+    private void deferStoreInRedis(Mock m) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    storeMockInRedis(m);
+                }
+            });
+        } else {
+            storeMockInRedis(m);
+        }
+    }
+
+    /**
+     * Defers Redis removal until after the transaction commits.
+     * Prevents Redis from removing a mock key if PostgreSQL rolls back.
+     */
+    private void deferRemoveFromRedis(UUID mockId) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    removeMockFromRedis(mockId);
+                }
+            });
+        } else {
+            removeMockFromRedis(mockId);
+        }
+    }
+
     // =========================================================================
     //  CRUD
     // =========================================================================
@@ -109,8 +143,8 @@ public class MockServiceImpl implements MockService {
         mockDao.save(m);
         deferCacheEviction();
 
-        // Store in Redis per-mock
-        storeMockInRedis(m);
+        // Store in Redis per-mock (deferred until after commit)
+        deferStoreInRedis(m);
 
         auditService.recordWithDetails(
                 "MOCK", m.getId().toString(), AuditAction.CREATE,
@@ -189,8 +223,8 @@ public class MockServiceImpl implements MockService {
         mockDao.save(m);
         deferCacheEviction();
 
-        // Update in Redis
-        storeMockInRedis(m);
+        // Update in Redis (deferred until after commit)
+        deferStoreInRedis(m);
 
         auditService.recordWithDetails(
                 "MOCK", m.getId().toString(), AuditAction.UPDATE,
@@ -211,8 +245,8 @@ public class MockServiceImpl implements MockService {
         mockDao.save(mockDao.findById(id).map(m -> { m.setDeleted(true); return m; }).get());
         deferCacheEviction();
 
-        // Remove from Redis
-        removeMockFromRedis(id);
+        // Remove from Redis (deferred until after commit)
+        deferRemoveFromRedis(id);
 
         auditService.record("MOCK", id.toString(), AuditAction.DELETE, "soft-delete → moved to trash");
         log.info("Mock soft-deleted: id={}", id);
@@ -226,8 +260,8 @@ public class MockServiceImpl implements MockService {
         mockDao.recoverMockNative(id.toString());
         deferCacheEviction();
 
-        // Re-add to Redis after recovery
-        deletedMock.ifPresent(this::storeMockInRedis);
+        // Re-add to Redis after recovery (deferred until after commit)
+        deletedMock.ifPresent(this::deferStoreInRedis);
 
         auditService.record("MOCK", id.toString(), AuditAction.RECOVER, "restored from trash");
         log.info("Mock recovered: id={}", id);
@@ -249,7 +283,7 @@ public class MockServiceImpl implements MockService {
         mockDao.permanentlyDeleteById(id.toString());
 
         deferCacheEviction();
-        removeMockFromRedis(id);
+        deferRemoveFromRedis(id);
 
         auditService.recordWithDetails(
                 "MOCK", id.toString(), AuditAction.PERMANENT_DELETE,
@@ -344,6 +378,17 @@ public class MockServiceImpl implements MockService {
         JsonNode resolvedBody = resolveResponseBody(mock, match.get(), queryParams, headersLower, requestBody);
         int statusCode = mock.getStatusCode();
 
+        // Determine response Content-Type:
+        // mock.getContentType() is the REQUEST content type (e.g. x-www-form-urlencoded).
+        // For request-only types, the RESPONSE must be application/json to avoid
+        // HttpMessageNotWritableException when Spring tries to serialize JsonNode.
+        String responseContentType = mock.getContentType();
+        if (responseContentType != null
+                && (responseContentType.contains("x-www-form-urlencoded")
+                    || responseContentType.contains("multipart/form-data"))) {
+            responseContentType = "application/json";
+        }
+
         MockExecutionResult result = MockExecutionResult.builder()
                 .matchedMockId(mock.getId())
                 .endpoint(mock.getEndpoint())
@@ -353,11 +398,11 @@ public class MockServiceImpl implements MockService {
                 .statusCode(statusCode)
                 .headers(mock.getHeaders() == null ? null : new HashMap<>(mock.getHeaders()))
                 .responseHeaders(mock.getResponseHeaders() == null ? null : new HashMap<>(mock.getResponseHeaders()))
-                .contentType(mock.getContentType())
+                .contentType(responseContentType)
                 .responseBody(resolvedBody)
                 .build();
 
-        log.debug("  Response built: status={}, contentType={}", statusCode, mock.getContentType());
+        log.debug("  Response built: status={}, contentType={}", statusCode, responseContentType);
         return result;
     }
 

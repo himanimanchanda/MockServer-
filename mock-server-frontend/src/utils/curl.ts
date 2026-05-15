@@ -3,18 +3,39 @@ import type { KVRow } from '../types'
 /**
  * Dynamic API base URL for curl/postman generation.
  *
- * - In production (nginx serves frontend at same origin as backend):
- *   → uses window.location.origin (e.g. https://mockserver.airtel.in)
- * - In local dev (Vite dev server on :5173, backend on :8080):
- *   → uses VITE_API_BASE_URL env var if set, otherwise window.location.origin
- *     (Vite proxy handles /api/* → localhost:8080 automatically)
- *
- * NO hardcoded localhost anywhere.
+ * Resolution order:
+ * 1. VITE_API_BASE_URL env var (explicit override) → use as-is
+ * 2. Local dev (Vite dev server on :5173/:3000, backend on :8080):
+ *    → curl must point to http://localhost:8080 (backend), NOT the frontend port
+ * 3. Production (nginx serves both frontend + backend on same origin):
+ *    → uses window.location.origin (e.g. https://mockserver.airtel.in)
  */
-export const API_BASE_URL =
-  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_BASE_URL)
-    ? String((import.meta as any).env.VITE_API_BASE_URL).replace(/\/$/, '')
-    : (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8080')
+function resolveCurlBaseUrl(): string {
+  // 1. Explicit env var
+  const envUrl = typeof import.meta !== 'undefined'
+    ? (import.meta as any).env?.VITE_API_BASE_URL
+    : undefined
+  if (envUrl != null && String(envUrl).trim() !== '') {
+    return String(envUrl).replace(/\/$/, '')
+  }
+
+  // 2. Detect local dev (frontend running on Vite dev ports)
+  if (typeof window !== 'undefined') {
+    const port = window.location.port
+    const hostname = window.location.hostname
+    const isLocalDev = (hostname === 'localhost' || hostname === '127.0.0.1')
+      && (port === '5173' || port === '3000' || port === '5174')
+    if (isLocalDev) {
+      return 'http://localhost:8080'
+    }
+    // 3. Production — same origin
+    return window.location.origin
+  }
+
+  return 'http://localhost:8080'
+}
+
+export const API_BASE_URL = resolveCurlBaseUrl()
 
 function toArray(input?: KVRow[] | Record<string, string>): KVRow[] {
   if (!input) return []

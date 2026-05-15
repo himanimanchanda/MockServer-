@@ -29,7 +29,7 @@ export default function RoutesPage() {
   const navigate = useNavigate()
   const { projects, selectedProjectId, setSelectedProjectId } = useProjectContext()
 
-  const [scope, setScope] = React.useState<'all' | 'project' | 'trash'>('all')
+  const [scope, setScope] = React.useState<'project' | 'trash'>('project')
   const [mocks, setMocks] = React.useState<MockDto[]>([])
   const [loading, setLoading] = React.useState(false)
   const [searchQuery, setSearchQuery] = React.useState('')
@@ -188,21 +188,13 @@ export default function RoutesPage() {
           <div className="flex flex-wrap gap-4 sm:gap-6 border-b border-white/10">
             <button
               className={`pb-3 text-sm font-semibold transition-all duration-200 border-b-2 ${
-                scope === 'all' ? 'border-white text-white' : 'border-transparent text-white/60 hover:text-white/90'
-              }`}
-              onClick={() => setScope('all')}
-            >
-              All Routes
-            </button>
-            <button
-              className={`pb-3 text-sm font-semibold transition-all duration-200 border-b-2 ${
                 scope === 'project' ? 'border-white text-white' : 'border-transparent text-white/60 hover:text-white/90'
               }`}
               onClick={() => setScope('project')}
               disabled={!selectedProjectId}
               title={!selectedProjectId ? 'Select a project first' : undefined}
             >
-              Project Routes
+              Routes
             </button>
             <button
               className={`pb-3 text-sm font-semibold transition-all duration-200 border-b-2 ${
@@ -218,59 +210,61 @@ export default function RoutesPage() {
         {/* BODY */}
         <div className="p-3 sm:p-5 flex-1 flex flex-col">
           {/* SEARCH + FILTER */}
-          <div className="mb-4 sm:mb-5 grid grid-cols-1 sm:grid-cols-12 items-end gap-3 sm:gap-4">
-            <div className="sm:col-span-4">
-              <label className="text-[11px] font-semibold uppercase tracking-wider t-label">Search API</label>
-              <div className="flex gap-2 mt-1.5">
-                <input
-                  className="flex-1 rounded-xl input-dark px-4 py-2.5 text-sm"
-                  placeholder="Search endpoints..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-                <button
-                  className="btn-gradient rounded-xl px-5 py-2.5 text-xs font-semibold"
-                  onClick={() => refreshSearch(searchQuery)}
-                >
-                  {searchLoading ? '...' : 'Search'}
-                </button>
+          <div className="mb-4 sm:mb-5 space-y-3">
+            {/* Search + Project side by side on desktop, stacked on mobile */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div>
+                <label className="text-[11px] font-semibold uppercase tracking-wider t-label">Search API</label>
+                <div className="flex gap-2 mt-1.5">
+                  <input
+                    className="flex-1 rounded-xl input-dark px-4 py-2.5 text-sm min-w-0"
+                    placeholder="Search endpoints..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                  <button
+                    className="btn-gradient rounded-xl px-4 py-2.5 text-xs font-semibold flex-shrink-0"
+                    onClick={() => refreshSearch(searchQuery)}
+                  >
+                    {searchLoading ? '...' : 'Search'}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold uppercase tracking-wider t-label">Active Project</label>
+                <div className="flex gap-2 mt-1.5">
+                  <select
+                    className="flex-1 rounded-xl input-dark px-4 py-2.5 text-sm min-w-0"
+                    value={selectedProjectId ?? ''}
+                    onChange={(e) => setSelectedProjectId(e.target.value || null)}
+                  >
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+
+                  <Link to="/projects" className="btn-gradient rounded-xl px-4 py-2.5 text-xs font-semibold flex-shrink-0 flex items-center">
+                    Manage
+                  </Link>
+                </div>
               </div>
             </div>
 
-            <div className="hidden sm:block sm:col-span-4 text-center pb-2">
-              <div className="inline-flex flex-col items-center justify-center gap-1">
-                <span className="text-3xl font-black t-heading">{mocks.length}</span>
-                <span className="text-[10px] uppercase font-bold tracking-widest t-muted">Routes Found</span>
-                {mocks.length > PAGE_SIZE ? (
-                  <span className="text-[11px] t-secondary">
-                    Page {clampedIdx + 1} / {totalPages} — {PAGE_SIZE} per page
-                  </span>
-                ) : null}
-              </div>
-            </div>
-
-            <div className="sm:col-span-4">
-              <label className="text-[11px] font-semibold uppercase tracking-wider t-label">Active Project</label>
-              <div className="flex gap-2 mt-1.5">
-                <select
-                  className="flex-1 rounded-xl input-dark px-4 py-2.5 text-sm"
-                  value={selectedProjectId ?? ''}
-                  onChange={(e) => setSelectedProjectId(e.target.value || null)}
-                >
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-
-                <Link to="/projects" className="btn-gradient rounded-xl px-4 py-2.5 text-xs font-semibold">
-                  Manage
-                </Link>
-              </div>
-            </div>
           </div>
 
           {/* ROUTES LIST */}
           <div className="space-y-4">
+            {/* Routes count - above the route cards */}
+            <div className="flex flex-col items-center justify-center py-1">
+              <span className="text-2xl sm:text-3xl font-black t-heading">{mocks.length}</span>
+              <span className="text-[10px] uppercase font-bold tracking-widest t-muted">Routes Found</span>
+              {mocks.length > PAGE_SIZE ? (
+                <span className="text-[11px] t-secondary mt-0.5">
+                  Page {clampedIdx + 1} / {totalPages}
+                </span>
+              ) : null}
+            </div>
             <RouteList
               loading={loading}
               mocks={pagedMocks}
