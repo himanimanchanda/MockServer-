@@ -2,6 +2,7 @@ package com.telecom.mockserver.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.telecom.mockserver.dto.response.ApiError;
 import com.telecom.mockserver.dto.response.MockExecutionResult;
 import com.telecom.mockserver.engine.EnvironmentResolver;
@@ -83,13 +84,27 @@ public class MockCatchAllController {
         Environment environment = environmentResolver.resolve(request);
         log.debug("  Environment resolved: {}", environment);
 
-        // Query params — filter out the system 'env' param to prevent false mismatches
-        Map<String, String> queryParams = request.getParameterMap().entrySet().stream()
-                .filter(e -> !ENV_QUERY_PARAM.equalsIgnoreCase(e.getKey()))
-                .collect(Collectors.toMap(
-                        Map.Entry::getKey,
-                        e -> e.getValue() != null && e.getValue().length > 0 ? e.getValue()[0] : ""
-                ));
+        // Query params — for form-urlencoded and multipart/form-data, getParameterMap()
+        // merges body fields with URL query params, which pollutes mock matching.
+        // Parse URL query string directly for these content types.
+        Map<String, String> queryParams;
+        boolean isFormUrlEncoded = request.getContentType() != null
+                && request.getContentType().contains("application/x-www-form-urlencoded");
+        boolean isMultipartFormData = request.getContentType() != null
+                && request.getContentType().contains("multipart/form-data");
+
+        if (isFormUrlEncoded || isMultipartFormData) {
+            // Parse only the actual URL query string, excluding form body fields
+            queryParams = parseQueryString(request.getQueryString());
+        } else {
+            queryParams = request.getParameterMap().entrySet().stream()
+                    .filter(e -> !ENV_QUERY_PARAM.equalsIgnoreCase(e.getKey()))
+                    .collect(Collectors.toMap(
+                            Map.Entry::getKey,
+                            e -> e.getValue() != null && e.getValue().length > 0 ? e.getValue()[0] : ""
+                    ));
+        }
+        queryParams.remove(ENV_QUERY_PARAM);
         if (!queryParams.isEmpty()) {
             log.debug("  Query params (filtered): {}", queryParams);
         }
@@ -179,8 +194,43 @@ public class MockCatchAllController {
                         (a, b) -> a));
     }
 
+    /**
+     * Parses only the URL query string (not merged form body fields).
+     * This is needed for form-urlencoded requests where getParameterMap()
+     * merges both URL query params and form body fields.
+     */
+    private Map<String, String> parseQueryString(String queryString) {
+        Map<String, String> params = new LinkedHashMap<>();
+        if (queryString == null || queryString.isBlank()) return params;
+        for (String pair : queryString.split("&")) {
+            int eq = pair.indexOf('=');
+            if (eq > 0) {
+                try {
+                    String key = java.net.URLDecoder.decode(pair.substring(0, eq), StandardCharsets.UTF_8.name());
+                    String value = java.net.URLDecoder.decode(pair.substring(eq + 1), StandardCharsets.UTF_8.name());
+                    params.put(key, value);
+                } catch (Exception e) {
+                    // skip malformed pair
+                }
+            }
+        }
+        return params;
+    }
+
     private JsonNode extractBody(HttpServletRequest request) {
         try {
+            String contentType = request.getContentType();
+
+            // form-urlencoded: extract form body fields (exclude URL query params)
+            if (contentType != null && contentType.contains("application/x-www-form-urlencoded")) {
+                return extractFormFields(request);
+            }
+
+            // multipart/form-data: extract text part parameters as JSON
+            if (contentType != null && contentType.contains("multipart/form-data")) {
+                return extractFormFields(request);
+            }
+
             byte[] bytes = request.getInputStream().readNBytes(1024 * 1024 + 1);
             if (bytes == null || bytes.length == 0) return null;
             if (bytes.length > 1024 * 1024) throw new BadRequestException("Request body too large (max 1MB)");
@@ -197,5 +247,22 @@ public class MockCatchAllController {
             // Don't throw — non-JSON bodies should still match mocks that don't require body matching
             return null;
         }
+    }
+
+    /**
+     * Extracts form fields (from both form-urlencoded and multipart/form-data)
+     * as a JSON ObjectNode, excluding URL query params and the env system param.
+     */
+    private JsonNode extractFormFields(HttpServletRequest request) {
+        Set<String> urlQueryKeys = parseQueryString(request.getQueryString()).keySet();
+        ObjectNode formBody = objectMapper.createObjectNode();
+        request.getParameterMap().forEach((key, values) -> {
+            if (values != null && values.length > 0
+                    && !ENV_QUERY_PARAM.equalsIgnoreCase(key)
+                    && !urlQueryKeys.contains(key)) {
+                formBody.put(key, values[0]);
+            }
+        });
+        return formBody.isEmpty() ? null : formBody;
     }
 }

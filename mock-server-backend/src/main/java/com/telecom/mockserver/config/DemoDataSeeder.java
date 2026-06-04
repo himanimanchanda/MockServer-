@@ -1,10 +1,9 @@
 package com.telecom.mockserver.config;
 
 import com.telecom.mockserver.model.*;
-import com.telecom.mockserver.repository.EntityAuditLogJpaRepository;
+import com.telecom.mockserver.repository.AuditTrailRepository;
 import com.telecom.mockserver.repository.MockJpaRepository;
 import com.telecom.mockserver.repository.ProjectJpaRepository;
-import com.telecom.mockserver.repository.RequestLogJpaRepository;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -13,14 +12,16 @@ import org.springframework.context.annotation.Configuration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
-import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Seeds rich demo data on first boot (when DB is empty and mockserver.demo.seed=true).
  *
  * Creates 5 projects, 25+ mocks across all environments (DEV/QA/PROD),
- * 50 request logs, and 30 audit trail entries so the UI looks impressive
+ * and 30 audit trail entries so the UI looks impressive
  * right after `docker compose up --build`.
+ *
+ * <p><b>NOTE:</b> Demo seed is disabled by default in production/deployed environments.
+ * Set {@code MOCKSERVER_DEMO_SEED=true} env var to enable.</p>
  */
 @Configuration
 public class DemoDataSeeder {
@@ -30,8 +31,7 @@ public class DemoDataSeeder {
     CommandLineRunner seed(
             ProjectJpaRepository projectRepo,
             MockJpaRepository mockRepo,
-            RequestLogJpaRepository logRepo,
-            EntityAuditLogJpaRepository auditRepo
+            AuditTrailRepository auditRepo
     ) {
         return args -> {
             if (projectRepo.count() > 0 || mockRepo.count() > 0) return;
@@ -87,6 +87,18 @@ public class DemoDataSeeder {
                     Map.of("X-Mocked", "true"),
                     "{\"id\":\"{productId}\",\"name\":\"Premium Widget\",\"price\":99.99,\"category\":\"Electronics\",\"rating\":4.5,\"reviews\":128}",
                     0L, "Product detail", "Dynamic product detail with path param."));
+
+            allMockIds.add(saveMock(mockRepo, p1, Environment.DEV, HttpMethodType.POST,
+                    "/demo/upload", 200, "application/json",
+                    Map.of("X-Mocked", "true"),
+                    "{\"message\":\"File uploaded successfully\",\"fileId\":\"{uuid}\",\"size\":\"1.2MB\"}",
+                    0L, "Multipart form-data upload", "Simulates a file upload endpoint."));
+
+            allMockIds.add(saveMock(mockRepo, p1, Environment.DEV, HttpMethodType.POST,
+                    "/demo/login", 200, "application/json",
+                    Map.of("X-Mocked", "true", "Set-Cookie", "session_id={uuid}; Path=/; HttpOnly"),
+                    "{\"message\":\"Login successful\",\"token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\"}",
+                    0L, "Form URL-encoded login", "Simulates a form login endpoint."));
 
             allMockIds.add(saveMock(mockRepo, p1, Environment.QA, HttpMethodType.GET,
                     "/demo/health", 200, "application/json",
@@ -249,58 +261,16 @@ public class DemoDataSeeder {
                     0L, "PROD Account detail", "Account lookup in PROD environment."));
 
             // ═════════════════════════════════════════════════════════════════
-            //  REQUEST LOGS (50 entries)
-            // ═════════════════════════════════════════════════════════════════
-
-            Instant now = Instant.now();
-            String[] logEndpoints = {
-                    "/demo/health", "/demo/products", "/demo/products/42",
-                    "/demo/projects/abc123", "/demo/items", "/demo/payments",
-                    "/demo/payments/txn-001", "/demo/plans", "/demo/subscribers/9876543210",
-                    "/demo/patients/P001", "/demo/patients/P001/prescriptions",
-                    "/demo/accounts/ACC001", "/demo/accounts/ACC001/transactions",
-                    "/demo/transfers", "/demo/market/stocks/RELIANCE",
-                    "/demo/redirect", "/demo/validate", "/demo/not-found",
-                    "/demo/server-error", "/demo/appointments",
-                    "/users/123", "/api/unknown-endpoint"
-            };
-            String[] logMethods = {"GET", "POST", "PUT", "DELETE", "PATCH", "GET", "GET", "GET"};
-            Integer[] statusCodes = {200, 201, 200, 204, 200, 200, 302, 400, 404, 500, 200, 200};
-
-            for (int i = 0; i < 50; i++) {
-                Instant logTs = now.minus(50 - i, ChronoUnit.MINUTES);
-                String ep = logEndpoints[i % logEndpoints.length];
-                String method = logMethods[i % logMethods.length];
-                int status = statusCodes[i % statusCodes.length];
-                boolean matched = status != 404 && i % 7 != 0; // ~15% unmatched
-                UUID mockId = matched && !allMockIds.isEmpty()
-                        ? allMockIds.get(i % allMockIds.size())
-                        : null;
-
-                logRepo.save(RequestLog.builder()
-                        .endpoint(ep)
-                        .method(method)
-                        .timestamp(logTs)
-                        .matchedMockId(mockId)
-                        .requestHeaders("{\"content-type\":\"application/json\",\"user-agent\":\"PostmanRuntime/7.36\"}")
-                        .requestBody(method.equals("POST") || method.equals("PUT") ? "{\"demo\":true}" : null)
-                        .queryParams(i % 5 == 0 ? "{\"page\":\"1\",\"limit\":\"10\"}" : null)
-                        .responseBody(matched ? "{\"status\":\"ok\",\"mocked\":true}" : null)
-                        .responseStatusCode(status)
-                        .matched(matched)
-                        .build());
-            }
-
-            // ═════════════════════════════════════════════════════════════════
             //  AUDIT TRAIL (30 entries)
             // ═════════════════════════════════════════════════════════════════
 
+            Instant now = Instant.now();
             UUID[] projectIds = {p1, p2, p3, p4, p5};
             String[] projectNames = {"Demo Ecommerce", "Demo Payments", "Demo Telecom", "Demo Healthcare", "Demo Fintech"};
 
             // Project creation audits
             for (int i = 0; i < 5; i++) {
-                auditRepo.save(EntityAuditLog.builder()
+                auditRepo.save(AuditTrail.builder()
                         .performedAt(now.minus(60 - i, ChronoUnit.MINUTES))
                         .entityType("PROJECT")
                         .entityId(projectIds[i].toString())
@@ -329,7 +299,7 @@ public class DemoDataSeeder {
                 }
 
                 UUID mockId = allMockIds.get(i % allMockIds.size());
-                auditRepo.save(EntityAuditLog.builder()
+                auditRepo.save(AuditTrail.builder()
                         .performedAt(now.minus(55 - i * 2L, ChronoUnit.MINUTES))
                         .entityType("MOCK")
                         .entityId(mockId.toString())
@@ -339,8 +309,8 @@ public class DemoDataSeeder {
                         .build());
             }
 
-            // A few more project audits (update/delete scenarios)
-            auditRepo.save(EntityAuditLog.builder()
+            // A few more project audits
+            auditRepo.save(AuditTrail.builder()
                     .performedAt(now.minus(10, ChronoUnit.MINUTES))
                     .entityType("PROJECT")
                     .entityId(UUID.randomUUID().toString())
@@ -349,7 +319,7 @@ public class DemoDataSeeder {
                     .summary("Deleted project: Old Test Project")
                     .build());
 
-            auditRepo.save(EntityAuditLog.builder()
+            auditRepo.save(AuditTrail.builder()
                     .performedAt(now.minus(8, ChronoUnit.MINUTES))
                     .entityType("MOCK")
                     .entityId(allMockIds.get(0).toString())
@@ -358,7 +328,7 @@ public class DemoDataSeeder {
                     .summary("Updated status code from 200 to 201")
                     .build());
 
-            auditRepo.save(EntityAuditLog.builder()
+            auditRepo.save(AuditTrail.builder()
                     .performedAt(now.minus(5, ChronoUnit.MINUTES))
                     .entityType("MOCK")
                     .entityId(allMockIds.get(2).toString())
@@ -367,7 +337,7 @@ public class DemoDataSeeder {
                     .summary("Added response headers")
                     .build());
 
-            auditRepo.save(EntityAuditLog.builder()
+            auditRepo.save(AuditTrail.builder()
                     .performedAt(now.minus(3, ChronoUnit.MINUTES))
                     .entityType("PROJECT")
                     .entityId(p5.toString())
@@ -376,7 +346,7 @@ public class DemoDataSeeder {
                     .summary("Auto-created project: Demo Fintech")
                     .build());
 
-            auditRepo.save(EntityAuditLog.builder()
+            auditRepo.save(AuditTrail.builder()
                     .performedAt(now.minus(1, ChronoUnit.MINUTES))
                     .entityType("MOCK")
                     .entityId(allMockIds.get(allMockIds.size() - 1).toString())

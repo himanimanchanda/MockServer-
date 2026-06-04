@@ -1,15 +1,22 @@
-# IDEs
+# ══════════════════════════════════════════════════════
+# Mock Server — .gitignore
+# ══════════════════════════════════════════════════════
+
+# ── IDEs ──────────────────────────────────────────────
 .idea/
 *.iml
 .vscode/
+*.swp
+*.swo
+*~
 
-# Maven (Backend)
+# ── Maven (Backend) ───────────────────────────────────
 mock-server-backend/target/
 mock-server-backend/*.jar
 mock-server-backend/*.war
-mock-server-backend/*.log
+mock-server-backend/.mvn/wrapper/maven-wrapper.jar
 
-# Node.js (Frontend)
+# ── Node.js (Frontend) ────────────────────────────────
 mock-server-frontend/node_modules/
 mock-server-frontend/dist/
 mock-server-frontend/build/
@@ -19,7 +26,11 @@ mock-server-frontend/.env.development.local
 mock-server-frontend/.env.test.local
 mock-server-frontend/.env.production.local
 
-# OS generated files
+# ── Runtime Logs ──────────────────────────────────────
+logs/
+*.log
+
+# ── OS Files ──────────────────────────────────────────
 .DS_Store
 .DS_Store?
 ._*
@@ -27,6 +38,10 @@ mock-server-frontend/.env.production.local
 .Trashes
 ehthumbs.db
 Thumbs.db
+desktop.ini
 
-# Logs
-*.log
+# ── Docker volumes / data ─────────────────────────────
+postgres_data/
+redis_data/
+
+MockServer_Manager_Guide.md

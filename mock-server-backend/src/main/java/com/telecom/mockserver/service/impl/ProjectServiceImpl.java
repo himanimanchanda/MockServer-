@@ -1,14 +1,14 @@
 package com.telecom.mockserver.service.impl;
 
+import com.telecom.mockserver.dao.MockDao;
+import com.telecom.mockserver.dao.ProjectDao;
 import com.telecom.mockserver.dto.request.CreateProjectRequestDto;
 import com.telecom.mockserver.dto.response.ProjectDto;
 import com.telecom.mockserver.exception.NotFoundException;
 import com.telecom.mockserver.mapper.ProjectMapper;
 import com.telecom.mockserver.model.AuditAction;
 import com.telecom.mockserver.model.Project;
-import com.telecom.mockserver.repository.MockJpaRepository;
-import com.telecom.mockserver.repository.ProjectJpaRepository;
-import com.telecom.mockserver.service.EntityAuditLogService;
+import com.telecom.mockserver.service.AuditService;
 import com.telecom.mockserver.service.ProjectService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -24,10 +24,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ProjectServiceImpl implements ProjectService {
 
-    private final ProjectJpaRepository projectRepository;
-    private final MockJpaRepository mockRepository;
+    private final ProjectDao projectDao;
+    private final MockDao mockDao;
     private final ProjectMapper projectMapper;
-    private final EntityAuditLogService entityAuditLogService;
+    private final AuditService auditService;
 
     @Override
     @Transactional
@@ -44,15 +44,15 @@ public class ProjectServiceImpl implements ProjectService {
                 .createdBy(olmId)
                 .ownerOlmId(olmId)
                 .build();
-        projectRepository.save(p);
-        entityAuditLogService.record("PROJECT", p.getId().toString(), AuditAction.CREATE, p.getName());
+        projectDao.save(p);
+        auditService.record("PROJECT", p.getId().toString(), AuditAction.CREATE, p.getName());
         return projectMapper.toDto(p);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<ProjectDto> listProjects() {
-        return projectRepository.findAll()
+        return projectDao.findAll()
                 .stream()
                 .map(projectMapper::toDto)
                 .collect(Collectors.toList());
@@ -61,11 +61,11 @@ public class ProjectServiceImpl implements ProjectService {
     @Override
     @Transactional
     public void deleteProject(UUID id) {
-        if (!projectRepository.existsById(id)) {
+        if (!projectDao.existsById(id)) {
             throw new NotFoundException("Project not found: " + id);
         }
-        mockRepository.deleteByProjectId(id);
-        entityAuditLogService.record("PROJECT", id.toString(), AuditAction.DELETE, "deleted project and its routes");
-        projectRepository.deleteById(id);
+        mockDao.deleteByProjectId(id);
+        auditService.record("PROJECT", id.toString(), AuditAction.DELETE, "deleted project and its routes");
+        projectDao.deleteById(id);
     }
 }

@@ -90,12 +90,6 @@
       <artifactId>spring-boot-starter-data-redis</artifactId>
     </dependency>
 
-    <!-- Hibernate Envers for Auditing/History -->
-    <dependency>
-      <groupId>org.hibernate.orm</groupId>
-      <artifactId>hibernate-envers</artifactId>
-    </dependency>
-
     <!-- Spring Boot Actuator — health checks, metrics, prometheus -->
     <dependency>
       <groupId>org.springframework.boot</groupId>

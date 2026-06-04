@@ -1,7 +1,7 @@
 package com.telecom.mockserver.controller;
 
 import com.telecom.mockserver.dto.response.EntityAuditLogDto;
-import com.telecom.mockserver.service.EntityAuditLogService;
+import com.telecom.mockserver.service.AuditService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -13,13 +13,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * CRUD audit trail (separate from request hit logs and Hibernate Envers tables).
+ * REST controller exposing paginated audit trail logs.
  */
 @RestController
 @RequiredArgsConstructor
 public class AuditLogController {
 
-    private final EntityAuditLogService auditLogService;
+    private final AuditService auditService;
 
     @GetMapping({"/api/audit-logs", "/audit-logs"})
     public ResponseEntity<Page<EntityAuditLogDto>> list(
@@ -28,6 +28,6 @@ public class AuditLogController {
     ) {
         int safeSize = Math.min(Math.max(size, 1), 100);
         Pageable pageable = PageRequest.of(Math.max(page, 0), safeSize, Sort.by(Sort.Direction.DESC, "performedAt"));
-        return ResponseEntity.ok(auditLogService.list(pageable));
+        return ResponseEntity.ok(auditService.list(pageable));
     }
 }

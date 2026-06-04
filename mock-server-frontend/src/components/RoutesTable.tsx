@@ -233,23 +233,26 @@ export default function RoutesTable({
 
                 {/* Bottom Row: Meta info + Data pills + Actions */}
                 <div
-                  className="px-4 py-2.5 flex flex-wrap items-center gap-2 border-t"
+                  className="px-3 sm:px-4 py-2.5 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 border-t"
                   style={{ borderColor: 'var(--border-color)', background: 'rgba(0,0,0,0.02)' }}
                 >
                   {/* Description / Test Case chip */}
-                  {mock.testCase && (
-                    <span className="text-[10px] font-medium bg-violet-500/10 text-violet-400 rounded-full px-2.5 py-0.5">
-                      {mock.testCase.length > 30 ? mock.testCase.slice(0, 30) + '…' : mock.testCase}
-                    </span>
-                  )}
-                  {mock.description && (
-                    <span className="text-[10px] t-muted italic max-w-[200px] truncate" title={mock.description}>
-                      {mock.description}
-                    </span>
-                  )}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {mock.testCase && (
+                      <span className="text-[10px] font-medium bg-violet-500/10 text-violet-400 rounded-full px-2.5 py-0.5">
+                        {mock.testCase.length > 30 ? mock.testCase.slice(0, 30) + '…' : mock.testCase}
+                      </span>
+                    )}
+                    {mock.description && (
+                      <span className="text-[10px] t-muted italic max-w-[200px] truncate" title={mock.description}>
+                        {mock.description}
+                      </span>
+                    )}
+                  </div>
 
-                  {/* Data pills */}
-                  <div className="flex flex-wrap gap-1.5 sm:ml-auto mt-2 sm:mt-0">
+                  {/* Data pills + Actions row */}
+                  <div className="flex flex-wrap items-center gap-1.5 sm:ml-auto">
+                    {/* Data pills */}
                     {onViewQueryParams && (
                       <button
                         type="button"
@@ -301,10 +304,9 @@ export default function RoutesTable({
                         Response
                       </button>
                     )}
-                  </div>
 
-                  {/* Actions */}
-                  <div className="flex flex-wrap items-center gap-1.5 mt-2 sm:mt-0 sm:ml-2 sm:border-l sm:pl-2" style={{ borderColor: 'var(--border-color)' }}>
+                    {/* Separator + Actions */}
+                    <span className="hidden sm:inline-block w-px h-4 mx-1" style={{ background: 'var(--border-color)' }} />
                     {isTrash ? (
                       <>
                         {onRecover && (
@@ -320,7 +322,7 @@ export default function RoutesTable({
                             className="text-[11px] font-semibold text-red-500 hover:text-red-400 transition-colors px-2 py-1 rounded-lg hover:bg-red-500/10"
                             onClick={() => onPermanentDelete(mock.id)}
                           >
-                            ✕ Permanent Delete
+                            ✕ Delete
                           </button>
                         )}
                       </>
@@ -365,7 +367,7 @@ export default function RoutesTable({
 
                   {/* Updated info */}
                   {mock.updatedAt && (
-                    <span className="text-[9px] t-muted ml-1 whitespace-nowrap">
+                    <span className="text-[9px] t-muted whitespace-nowrap sm:ml-1">
                       {new Date(mock.updatedAt).toLocaleDateString()} {mock.updatedBy ? `• ${mock.updatedBy}` : ''}
                     </span>
                   )}

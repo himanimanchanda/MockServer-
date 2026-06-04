@@ -52,12 +52,11 @@ services:
       - SPRING_DATASOURCE_PASSWORD=mock_password
       - SPRING_DATASOURCE_DRIVER=org.postgresql.Driver
       - SPRING_JPA_DATABASE_PLATFORM=org.hibernate.dialect.PostgreSQLDialect
+      - SPRING_JPA_DDL_AUTO=update
       - SPRING_REDIS_HOST=redis
       - SPRING_REDIS_PORT=6379
       - MOCKSERVER_AUTH_ENABLED=false
       - MOCKSERVER_DEMO_SEED=true
-      # Optional: nest whole app under a prefix
-      # - SERVER_SERVLET_CONTEXT_PATH=/api/v1
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8080/actuator/health || exit 1"]
       interval: 15s

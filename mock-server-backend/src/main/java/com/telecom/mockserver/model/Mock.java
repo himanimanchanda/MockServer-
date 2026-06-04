@@ -2,49 +2,48 @@ package com.telecom.mockserver.model;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
-import org.hibernate.envers.Audited;
-import org.hibernate.envers.NotAudited;
 import org.hibernate.type.SqlTypes;
-import org.springframework.data.annotation.CreatedBy;
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.annotation.LastModifiedBy;
-import org.springframework.data.annotation.LastModifiedDate;
-import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-@Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
+/**
+ * Core mock endpoint entity.
+ *
+ * <p>Headers, query params, and response headers are stored as
+ * PostgreSQL JSONB columns for efficient single-query loading.</p>
+ *
+ * <p>Permanent deletion uses a flag ({@code isPermanentlyDeleted}) to
+ * retain data in the database for compliance while excluding it from
+ * all runtime queries via {@code @SQLRestriction}.</p>
+ */
 @Entity
-@Audited
-@EntityListeners(AuditingEntityListener.class)
-@SQLRestriction("is_deleted = false")
-@org.hibernate.annotations.SQLDelete(sql = "UPDATE mocks SET is_deleted = true WHERE id=?")
-@Table(name = "mocks", indexes = {
+@Table(name = "mock_endpoints", indexes = {
         @Index(name = "idx_mock_env_method", columnList = "environment, method"),
         @Index(name = "idx_mock_env_method_endpoint", columnList = "environment, method, endpoint"),
         @Index(name = "idx_mock_project", columnList = "projectId")
 })
-@NamedEntityGraph(
-        name = "Mock.withCollections",
-        attributeNodes = {
-                @NamedAttributeNode("headers"),
-                @NamedAttributeNode("queryParams"),
-                @NamedAttributeNode("responseHeaders")
-        }
-)
-public class Mock implements java.io.Serializable {
+@SQLDelete(sql = "UPDATE mock_endpoints SET is_deleted = true, updated_at = NOW() WHERE id = ?")
+@SQLRestriction("is_deleted = false AND is_permanently_deleted = false")
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class Mock {
 
     @Id
     @JdbcTypeCode(SqlTypes.CHAR)
+    @Column(length = 36)
     private UUID id;
+
+    @JdbcTypeCode(SqlTypes.CHAR)
+    @Column(name = "project_id", nullable = false, length = 36)
+    private UUID projectId;
 
     @Column(nullable = false, length = 512)
     private String endpoint;
@@ -53,11 +52,6 @@ public class Mock implements java.io.Serializable {
     @Column(nullable = false, length = 16)
     private HttpMethodType method;
 
-    @JdbcTypeCode(SqlTypes.CHAR)
-    @Column(nullable = false, length = 36)
-    private UUID projectId;
-
-    // FIX: @Lob on MySQL maps to LONGBLOB (binary) → use TEXT explicitly
     @Column(columnDefinition = "TEXT")
     private String requestBody;
 
@@ -67,71 +61,67 @@ public class Mock implements java.io.Serializable {
     @Column(nullable = false)
     private int statusCode;
 
-    // Request-matching headers — LAZY + batched to eliminate N+1
-    @NotAudited
-    @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(name = "mock_headers", joinColumns = @JoinColumn(name = "mock_id"))
-    @MapKeyColumn(name = "header_key", length = 512)
-    @Column(name = "header_value", length = 4096)
-    @BatchSize(size = 50)
-    private Map<String, String> headers;
+    /** Request headers stored as JSONB. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb default '{}'")
+    @Builder.Default
+    private Map<String, String> headers = new HashMap<>();
 
-    // Request-matching query params — LAZY + batched
-    @NotAudited
-    @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(name = "mock_query_params", joinColumns = @JoinColumn(name = "mock_id"))
-    @MapKeyColumn(name = "param_key", length = 512)
-    @Column(name = "param_value", length = 4096)
-    @BatchSize(size = 50)
-    private Map<String, String> queryParams;
+    /** Query parameters stored as JSONB. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb default '{}'")
+    @Builder.Default
+    private Map<String, String> queryParams = new HashMap<>();
 
-    // Response headers sent back to the HTTP caller — LAZY + batched
-    @NotAudited
-    @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(name = "mock_response_headers", joinColumns = @JoinColumn(name = "mock_id"))
-    @MapKeyColumn(name = "header_key", length = 512)
-    @Column(name = "header_value", length = 4096)
-    @BatchSize(size = 50)
-    private Map<String, String> responseHeaders;
+    /** Response headers stored as JSONB. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb default '{}'")
+    @Builder.Default
+    private Map<String, String> responseHeaders = new HashMap<>();
 
     private Long delayMs;
 
     @Column(length = 128)
     private String contentType;
 
-    private Boolean isTemp;
+    @Column(length = 4000)
+    private String description;
 
+    @Column(length = 2000)
+    private String testCase;
+
+    @Column(name = "is_deleted", nullable = false)
+    @Builder.Default
+    private boolean isDeleted = false;
+
+    @Column(name = "is_permanently_deleted", nullable = false)
+    @Builder.Default
+    private boolean isPermanentlyDeleted = false;
+
+    private Boolean isTemp;
     private Boolean toggleResponse;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
     private Environment environment;
 
-    @Column(length = 2000)
-    private String testCase;
-
-    @Column(length = 4000)
-    private String description;
-
-    // Soft delete
-    @Column(name = "is_deleted", nullable = false)
-    @Builder.Default
-    private boolean isDeleted = false;
-
-    // Auditing Fields
-    @CreatedDate
-    @Column(name = "created_at", updatable = false)
+    // Audit fields
+    @Column(updatable = false)
     private Instant createdAt;
-
-    @LastModifiedDate
-    @Column(name = "updated_at")
     private Instant updatedAt;
-
-    @CreatedBy
-    @Column(name = "created_by", updatable = false)
+    @Column(updatable = false)
     private String createdBy;
-
-    @LastModifiedBy
-    @Column(name = "updated_by")
     private String updatedBy;
+
+    @PrePersist
+    void prePersist() {
+        if (id == null) id = UUID.randomUUID();
+        createdAt = Instant.now();
+        updatedAt = createdAt;
+    }
+
+    @PreUpdate
+    void preUpdate() {
+        updatedAt = Instant.now();
+    }
 }

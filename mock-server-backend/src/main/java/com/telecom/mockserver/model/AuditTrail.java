@@ -5,15 +5,22 @@ import lombok.*;
 
 import java.time.Instant;
 
+/**
+ * Unified audit trail entity.
+ *
+ * <p>Records all system events (CREATE, UPDATE, DELETE, RECOVER, PERMANENT_DELETE)
+ * in a single queryable log for the entire platform.</p>
+ */
 @Entity
-@Table(name = "entity_audit_logs", indexes = {
-        @Index(name = "idx_audit_performed", columnList = "performedAt")
+@Table(name = "audit_trail", indexes = {
+        @Index(name = "idx_audit_performed", columnList = "performedAt"),
+        @Index(name = "idx_audit_entity", columnList = "entityType, entityId")
 })
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class EntityAuditLog {
+public class AuditTrail {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

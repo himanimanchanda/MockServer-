@@ -91,10 +91,10 @@ export default function DashboardPage() {
       iconColor: iconColors[2],
     },
     {
-      to: '/logs',
-      label: 'Logs',
+      to: '/audit',
+      label: 'Audit Trail',
       value: 'View',
-      desc: 'Inspect recent API hits against mocks.',
+      desc: 'Review changes and actions performed on mocks.',
       icon: cardIcons.logs,
       gradient: gradients[3],
       iconColor: iconColors[3],

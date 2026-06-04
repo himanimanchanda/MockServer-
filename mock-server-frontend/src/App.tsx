@@ -3,7 +3,6 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import ShellLayout from './components/ShellLayout'
 import ProtectedRoute from './components/ProtectedRoute'
 import DashboardPage from './pages/DashboardPage'
-import LogsPage from './pages/LogsPage'
 import LoginPage from './pages/LoginPage'
 import ProjectsPage from './pages/ProjectsPage'
 import RoutesPage from './pages/RoutesPage'
@@ -39,7 +38,6 @@ export default function App() {
         <Route path="routes"         element={<RoutesPage />} />
         <Route path="create-route"   element={<CreateRoutePage />} />
         <Route path="test-api"       element={<TestApiPage />} />
-        <Route path="logs"           element={<LogsPage />} />
         <Route path="audit"          element={<AuditTrailPage />} />
       </Route>
       <Route path="/mocks" element={<Navigate to="/routes" replace />} />

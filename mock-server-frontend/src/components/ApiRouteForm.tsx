@@ -8,11 +8,12 @@
 
 import React from 'react'
 import type { CreateMockRequest, Environment, HttpMethod, KVRow, MockDto, ProjectDto } from '../types'
-import { generateCurl, parseCurlToForm } from '../utils/curl'
+import { generateCurl, parseCurlToForm, API_BASE_URL } from '../utils/curl'
 import { listProjects, createProject } from '../api/client'
 import Toast from './Toast'
 
-const API_BASE = 'http://localhost:8080'
+const API_BASE = API_BASE_URL
+
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -317,13 +318,11 @@ export default function ApiRouteForm({
 
         {/* ERROR */}
         {error && (
-          <div className="fixed bottom-6 right-6 z-50 min-w-[300px] max-w-md drop-shadow-2xl">
-            <Toast
-              kind="error"
-              message={error}
-              onClose={() => setError(null)}
-            />
-          </div>
+          <Toast
+            kind="error"
+            message={error}
+            onClose={() => setError(null)}
+          />
         )}
 
         {/* SELECT PROJECT */}
@@ -457,7 +456,7 @@ export default function ApiRouteForm({
             >
               <option value="application/json">application/json</option>
               <option value="application/x-www-form-urlencoded">application/x-www-form-urlencoded</option>
-              <option value="form-data">form-data</option>
+              <option value="multipart/form-data">multipart/form-data</option>
             </select>
           </div>
         </Section>

@@ -3,8 +3,10 @@ package com.telecom.mockserver.dto.response;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.telecom.mockserver.model.Environment;
 import com.telecom.mockserver.model.HttpMethodType;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 import java.util.Map;
@@ -12,6 +14,8 @@ import java.util.UUID;
 
 @Data
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class MockDto {
     private UUID id;
     private UUID projectId;

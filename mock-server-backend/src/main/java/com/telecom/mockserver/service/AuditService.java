@@ -5,7 +5,10 @@ import com.telecom.mockserver.dto.response.EntityAuditLogDto;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
-public interface EntityAuditLogService {
+/**
+ * Service interface for audit trail operations.
+ */
+public interface AuditService {
 
     void record(String entityType, String entityId, AuditAction action, String summary);
 

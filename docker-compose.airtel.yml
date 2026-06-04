@@ -13,9 +13,10 @@ services:
       # ==========================================
       # AIRTEL TEAM: PLEASE FILL IN YOUR DB DETAILS HERE
       # ==========================================
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://<ENTER_YOUR_DB_IP_HERE>:5432/<ENTER_YOUR_DB_NAME>
-      - SPRING_DATASOURCE_USERNAME=<ENTER_YOUR_DB_USERNAME>
-      - SPRING_DATASOURCE_PASSWORD=<ENTER_YOUR_DB_PASSWORD>
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://10.248.245.11:5432/mock_server_service
+      - SPRING_DATASOURCE_USERNAME=mock_service
+      - SPRING_DATASOURCE_PASSWORD=$$ervM0ck!vice26
+      - SPRING_JPA_DDL_AUTO=update
       
       # ==========================================
       # AIRTEL TEAM: PLEASE FILL IN YOUR REDIS DETAILS HERE

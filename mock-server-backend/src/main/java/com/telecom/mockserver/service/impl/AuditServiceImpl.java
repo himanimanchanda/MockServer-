@@ -1,14 +1,12 @@
 package com.telecom.mockserver.service.impl;
 
+import com.telecom.mockserver.dao.AuditDao;
+import com.telecom.mockserver.dao.MockDao;
+import com.telecom.mockserver.dao.ProjectDao;
 import com.telecom.mockserver.dto.response.EntityAuditLogDto;
 import com.telecom.mockserver.model.AuditAction;
-import com.telecom.mockserver.model.EntityAuditLog;
-import com.telecom.mockserver.model.Mock;
-import com.telecom.mockserver.model.Project;
-import com.telecom.mockserver.repository.EntityAuditLogJpaRepository;
-import com.telecom.mockserver.repository.MockJpaRepository;
-import com.telecom.mockserver.repository.ProjectJpaRepository;
-import com.telecom.mockserver.service.EntityAuditLogService;
+import com.telecom.mockserver.model.AuditTrail;
+import com.telecom.mockserver.service.AuditService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -21,13 +19,20 @@ import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * Unified audit trail service implementation.
+ *
+ * <p>Uses the DAO layer instead of direct repository access.
+ * Writes to the single {@code audit_trail} table, replacing the old
+ * multi-table approach (user_action_audit_logs + mock_audit_history + revinfo).</p>
+ */
 @Service
 @RequiredArgsConstructor
-public class EntityAuditLogServiceImpl implements EntityAuditLogService {
+public class AuditServiceImpl implements AuditService {
 
-    private final EntityAuditLogJpaRepository repository;
-    private final MockJpaRepository mockRepository;
-    private final ProjectJpaRepository projectRepository;
+    private final AuditDao auditDao;
+    private final MockDao mockDao;
+    private final ProjectDao projectDao;
 
     @Override
     @Transactional
@@ -48,7 +53,7 @@ public class EntityAuditLogServiceImpl implements EntityAuditLogService {
                                   String summary, String path, String requestBody, String responseBody,
                                   String projectName) {
         String actor = resolveActor();
-        repository.save(EntityAuditLog.builder()
+        auditDao.save(AuditTrail.builder()
                 .performedAt(Instant.now())
                 .entityType(entityType)
                 .entityId(entityId)
@@ -65,7 +70,7 @@ public class EntityAuditLogServiceImpl implements EntityAuditLogService {
     @Override
     @Transactional(readOnly = true)
     public Page<EntityAuditLogDto> list(Pageable pageable) {
-        Page<EntityAuditLogDto> page = repository.findAllByOrderByPerformedAtDesc(pageable)
+        Page<EntityAuditLogDto> page = auditDao.findAllByOrderByPerformedAtDesc(pageable)
                 .map(e -> EntityAuditLogDto.builder()
                         .id(e.getId())
                         .performedAt(e.getPerformedAt())
@@ -91,14 +96,12 @@ public class EntityAuditLogServiceImpl implements EntityAuditLogService {
      * look up the mock → project chain and fill in the project name.
      */
     private void resolveProjectNames(List<EntityAuditLogDto> entries) {
-        // Collect MOCK entries that need project name resolution
         List<EntityAuditLogDto> needsResolution = entries.stream()
                 .filter(e -> "MOCK".equals(e.getEntityType()) && e.getProjectName() == null)
                 .collect(Collectors.toList());
 
         if (needsResolution.isEmpty()) return;
 
-        // Batch lookup mocks by their entityIds (UUID strings)
         Set<UUID> mockIds = new HashSet<>();
         for (EntityAuditLogDto dto : needsResolution) {
             try {
@@ -108,23 +111,20 @@ public class EntityAuditLogServiceImpl implements EntityAuditLogService {
 
         if (mockIds.isEmpty()) return;
 
-        // Find all mocks (including soft-deleted ones via native query for full coverage)
         Map<String, UUID> mockToProject = new HashMap<>();
         for (UUID mockId : mockIds) {
-            mockRepository.findById(mockId)
+            mockDao.findById(mockId)
                     .ifPresent(m -> mockToProject.put(mockId.toString(), m.getProjectId()));
         }
 
-        // Collect unique project IDs and batch lookup project names
         Set<UUID> projectIds = new HashSet<>(mockToProject.values());
         projectIds.remove(null);
         Map<UUID, String> projectNames = new HashMap<>();
         if (!projectIds.isEmpty()) {
-            projectRepository.findAllById(projectIds)
+            projectDao.findAllById(projectIds)
                     .forEach(p -> projectNames.put(p.getId(), p.getName()));
         }
 
-        // Fill in project names
         for (EntityAuditLogDto dto : needsResolution) {
             UUID projId = mockToProject.get(dto.getEntityId());
             if (projId != null) {
